@@ -1,0 +1,110 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Daylo · Instagram grid preview</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap">
+<style>
+:root{--bg:#F4F5F0;--card:#FFFFFE;--ink:#3d342d;--muted:#8f857b;--cocoa:#8A6F5A;--line:#E9E6DF;--soft:#EDE7DE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#fff;font-family:Jost,sans-serif;color:var(--ink);display:flex;justify-content:center;padding:28px 0 40px}
+.ig{width:1086px}
+.prof{display:flex;gap:56px;align-items:center;padding:10px 40px 30px}
+.pav{width:150px;height:150px;border-radius:50%;background:var(--cocoa);display:grid;place-items:center;color:#fff;font:400 72px 'Cormorant Garamond',serif;box-shadow:0 0 0 4px #fff,0 0 0 5px var(--line)}
+.ph{display:flex;align-items:center;gap:18px;font-size:22px}.ph b{font-weight:500}
+.btn{font-size:14px;font-weight:500;padding:7px 16px;border-radius:9px;background:#efefef}
+.stats{display:flex;gap:36px;margin:18px 0;font-size:16px}.stats b{font-weight:600}
+.bio{font-size:15px;line-height:1.5}.bio b{font-weight:600}.bio a{color:#00376b;font-weight:500;text-decoration:none}
+.hl{display:flex;gap:34px;padding:0 50px 26px}
+.h{display:flex;flex-direction:column;align-items:center;gap:8px;font-size:12.5px;font-weight:500}
+.h i{width:78px;height:78px;border-radius:50%;box-shadow:0 0 0 1px #ddd;display:grid;place-items:center;background:var(--bg);font:italic 400 26px 'Cormorant Garamond',serif;color:var(--cocoa);border:4px solid #fff}
+.tabs{border-top:1px solid #dbdbdb;display:flex;justify-content:center;gap:60px;font-size:12px;letter-spacing:.12em;font-weight:600}
+.tabs span{padding:16px 0;color:#999}.tabs span.on{color:#262626;border-top:1px solid #262626;margin-top:-1px}
+.grid{display:grid;grid-template-columns:repeat(3,360px);gap:3px}
+.p{width:360px;height:480px;position:relative;overflow:hidden;background:var(--bg)}
+.p .cr{position:absolute;top:12px;right:12px;width:22px;height:22px;z-index:3}
+.ph-img{position:absolute;inset:0;background-size:cover;background-position:center}
+.shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(40,30,22,0) 40%,rgba(40,30,22,.55) 100%)}
+.serif{font-family:'Cormorant Garamond',serif}
+.cap{position:absolute;left:26px;right:26px;bottom:28px;color:#fff;z-index:2}
+.cap h2{font:400 34px/1.05 'Cormorant Garamond',serif}.cap h2 em{font-style:italic}
+.cap p{font-size:12px;letter-spacing:.2em;text-transform:uppercase;margin-top:10px;opacity:.9}
+.tx{position:absolute;inset:0;padding:36px 32px;display:flex;flex-direction:column;justify-content:center}
+.tx.cocoa{background:linear-gradient(160deg,#9a7f69,#7c6350);color:#fbf8f3}
+.tx.cream{background:var(--bg)}
+.tx .eb{font-size:11px;letter-spacing:.24em;text-transform:uppercase;opacity:.8;margin-bottom:18px}
+.tx h2{font:400 42px/1.02 'Cormorant Garamond',serif}.tx h2 em{font-style:italic}
+.tx.cream h2 em{color:var(--cocoa)}
+.tx .sm{font-size:14px;line-height:1.5;margin-top:18px;opacity:.85}
+.mark{position:absolute;bottom:22px;left:32px;font-size:11px;letter-spacing:.3em;opacity:.7}
+.list{margin-top:22px;display:flex;flex-direction:column}
+.li{display:flex;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--line);font-size:15px}
+.li:last-child{border-bottom:1px solid var(--line)}
+.ck{width:20px;height:20px;border-radius:50%;border:1px solid #cdbfae;flex:none;display:grid;place-items:center}
+.ck.on{background:var(--cocoa);border-color:var(--cocoa);color:#fff;font-size:11px}
+.li.done span{color:var(--muted);text-decoration:line-through}
+.li small{margin-left:auto;font-size:10px;letter-spacing:.12em;color:var(--muted)}.li small.l{color:#b0593f}
+.phone{position:absolute;left:50%;top:46px;transform:translateX(-50%) rotate(-3deg);width:190px;height:390px;border-radius:30px;background:#2f2924;padding:6px;box-shadow:0 24px 50px rgba(80,60,45,.25)}
+.scr{width:100%;height:100%;border-radius:24px;background:var(--bg);overflow:hidden;padding:9px;display:flex;flex-direction:column;gap:6px}
+.hero{border-radius:16px;padding:11px;background:linear-gradient(150deg,#FFFFFE,#F3F0EA 55%,#E7E0D6)}
+.hero .e{font-size:6.5px;letter-spacing:.2em;color:#9a8676}
+.hero .g{font:400 17px/1.05 'Cormorant Garamond',serif;margin-top:5px}.hero .g em{color:var(--cocoa)}
+.nx{margin-top:8px;background:#fff;border-radius:10px;padding:6px 7px;display:flex;gap:6px;align-items:center;font-size:8px}
+.tm{background:var(--cocoa);color:#fff;border-radius:6px;padding:3px 5px;font-size:7px}
+.seg{display:flex;gap:4px;margin-top:2px}.seg span{font-size:7px;padding:4px 8px;border-radius:9px;background:#fff;color:#8f857b}.seg span.on{background:var(--cocoa);color:#fff}
+.c{display:flex;gap:6px;align-items:center;background:#fff;border-radius:10px;padding:5px;font-size:8px}
+.c i{width:24px;height:24px;border-radius:7px;background:linear-gradient(135deg,#F3EFE9,#D4C8BA);flex:none}
+.c b{font-weight:500;display:block}.c em{font-style:normal;color:#8f857b;font-size:7px}
+.c u{margin-left:auto;text-decoration:none;font-size:6.5px;background:#F0EDE7;border-radius:8px;padding:2px 5px;color:#6f5b4b}
+.below{position:absolute;left:0;right:0;bottom:24px;text-align:center}
+.below h2{font:400 26px 'Cormorant Garamond',serif}.below h2 em{color:var(--cocoa)}
+.fc{position:absolute;display:flex;gap:10px;align-items:center;background:rgba(255,255,254,.95);border-radius:16px;padding:12px 14px;box-shadow:0 14px 30px rgba(80,60,45,.15);font-size:13px}
+.fc i{width:34px;height:34px;border-radius:11px;background:#F0EDE7;display:grid;place-items:center;color:var(--cocoa);font-style:normal;font-size:16px}
+.fc b{display:block;font-weight:600}.fc span{color:var(--muted);font-size:11.5px}
+.chip{position:absolute;top:26px;left:26px;z-index:2;display:flex;gap:8px;align-items:center;background:rgba(255,255,254,.92);border-radius:12px;padding:8px 11px;font-size:12px}
+.chip b{background:var(--cocoa);color:#fff;border-radius:7px;padding:3px 7px;font-size:11px;font-weight:500}
+.credit{font-size:11.5px;color:#8f857b;margin-top:18px;line-height:1.6;padding:0 6px}
+</style></head><body><div class="ig">
+<div class="prof"><div class="pav">D</div><div>
+ <div class="ph"><b>dayloapp</b><span class="btn">Follow</span><span class="btn">Message</span></div>
+ <div class="stats"><span><b>9</b> posts</span><span><b>1,204</b> followers</span><span><b>86</b> following</span></div>
+ <div class="bio"><b>Daylo · AI Assistant</b><br>Your days, gently in order. ☁︎<br>Deals, schedule & money in one calm app.<br>Made by a creator in NYC, for anyone juggling too many apps.<br><a>dayloapp.github.io</a></div></div></div>
+<div class="hl"><div class="h"><i>D</i>About</div><div class="h"><i>✓</i>How it works</div><div class="h"><i>$</i>Money</div><div class="h"><i>♡</i>Testers</div><div class="h"><i>?</i>FAQ</div></div>
+<div class="tabs"><span class="on">POSTS</span><span>REELS</span><span>TAGGED</span></div>
+<div class="grid">
+<!-- 1 photo latte -->
+<div class="p"><div class="ph-img" style="background-image:url(https://images.unsplash.com/photo-1593443320739-77f74939d0da?w=800&q=80&auto=format&fit=crop)"></div><div class="shade"></div>
+ <div class="cap"><h2>Your days,<br><em>gently in order.</em></h2><p>Meet Daylo</p></div></div>
+<!-- 2 text cocoa (carousel) -->
+<div class="p"><svg class="cr" viewBox="0 0 24 24" fill="#fff"><rect x="7" y="3" width="14" height="14" rx="2"/><rect x="3" y="7" width="14" height="14" rx="2" fill="none" stroke="#fff" stroke-width="2"/></svg>
+ <div class="tx cocoa"><div class="eb">My story · 1/6</div><h2>I was juggling <em>nine apps</em> just to run my week.</h2><div class="sm">So I built one calm place for all of it.</div><div class="mark">DAYLO</div></div></div>
+<!-- 3 app phone -->
+<div class="p"><div class="tx cream" style="justify-content:flex-start"></div>
+ <div class="phone"><div class="scr"><div class="hero"><div class="e">TUESDAY · 13 OCTOBER</div><div class="g"><em>Good afternoon,</em><br>Sam</div><div class="nx"><span class="tm">3:30 PM</span><span>Shoot with Nina</span></div></div>
+  <div class="seg"><span class="on">Today</span><span>Week</span><span>Deals</span></div>
+  <div class="c"><i></i><div><b>Reply to Maya</b><em>Lumen Skincare</em></div><u>Late</u></div>
+  <div class="c"><i></i><div><b>Pitch 5 brands</b><em>Routine</em></div><u>Today</u></div>
+  <div class="c"><i></i><div><b>Invoice Solace</b><em>$450 waiting</em></div><u>Money</u></div></div></div>
+ <div class="below"><h2>This is <em>Today.</em></h2></div></div>
+<!-- 4 text cream list -->
+<div class="p"><div class="tx cream"><div class="eb" style="color:#8A6F5A">For you, today</div><h2>Three things.<br><em>One at a time.</em></h2>
+ <div class="list"><div class="li"><span class="ck"></span><span>Reply to Maya</span><small class="l">LATE</small></div><div class="li"><span class="ck"></span><span>Shoot with Nina</span><small>3:30 PM</small></div><div class="li done"><span class="ck on">✓</span><span>Post GRWM reel</span></div></div></div></div>
+<!-- 5 photo creator -->
+<div class="p"><div class="ph-img" style="background-image:url(https://images.unsplash.com/photo-1759393852314-59dc00faeed3?w=800&q=80&auto=format&fit=crop)"></div><div class="shade"></div>
+ <div class="chip"><b>3:30 PM</b>Film · Lumen Skincare</div>
+ <div class="cap"><h2>Film day,<br><em>handled.</em></h2><p>Your shoots, on time</p></div></div>
+<!-- 6 text cocoa AI (carousel) -->
+<div class="p"><svg class="cr" viewBox="0 0 24 24" fill="#fff"><rect x="7" y="3" width="14" height="14" rx="2"/><rect x="3" y="7" width="14" height="14" rx="2" fill="none" stroke="#fff" stroke-width="2"/></svg>
+ <div class="tx cocoa"><div class="eb">How it works · 1/5</div><h2>An AI assistant that <em>asks first.</em></h2><div class="sm">Daylo suggests replies and next steps. Nothing goes out until you say yes.</div><div class="mark">DAYLO</div></div></div>
+<!-- 7 money floating card on photo -->
+<div class="p"><div class="ph-img" style="background-image:url(https://images.unsplash.com/photo-1596347909300-58c4d1bb35bc?w=800&q=80&auto=format&fit=crop)"></div><div class="shade" style="background:rgba(40,30,22,.18)"></div>
+ <div class="fc" style="left:30px;top:150px"><i>$</i><div><b>$450 waiting</b><span>Solace Swim · 12 days</span></div></div>
+ <div class="fc" style="right:24px;top:240px"><i>✉</i><div><b>New brand email</b><span>The Commense · collab</span></div></div>
+ <div class="cap"><h2>Never chase<br><em>a payment again.</em></h2></div></div>
+<!-- 8 photo rack for stylists (carousel) -->
+<div class="p"><svg class="cr" viewBox="0 0 24 24" fill="#fff"><rect x="7" y="3" width="14" height="14" rx="2"/><rect x="3" y="7" width="14" height="14" rx="2" fill="none" stroke="#fff" stroke-width="2"/></svg>
+ <div class="ph-img" style="background-image:url(https://images.unsplash.com/photo-1604882767135-b41fac508fff?w=800&q=80&auto=format&fit=crop)"></div><div class="shade"></div>
+ <div class="cap"><h2>Stylists, photographers,<br><em>this one’s for you too.</em></h2><p>Daylo fits your work</p></div></div>
+<!-- 9 cream CTA -->
+<div class="p"><div class="tx cream" style="align-items:center;text-align:center"><div class="eb" style="color:#8A6F5A">Now testing</div><h2>Try it with<br><em>just your name.</em></h2><div class="sm" style="color:#8f857b">No email. No password.<br>Free while we test.</div>
+ <div style="margin-top:24px;background:#8A6F5A;color:#fff;border-radius:999px;padding:12px 22px;font-size:13px;font-weight:500">Link in bio</div></div></div>
+</div>
+<div class="credit">Photos from Unsplash (free to use under the Unsplash License): tabitha turner (latte), Afffect (creator filming), Workperch (desk and iPad), Priscilla Du Preez (clothing rack). Preview only; not a real account.</div>
+</div></body></html>
