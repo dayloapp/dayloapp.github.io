@@ -546,6 +546,60 @@ body.onb-start .acct-face{background:#EDE7DE!important}
 body.onb-start .blobs .b1{background:#E9E2D8!important;opacity:.55!important}
 body.onb-start .blobs .b2{background:#EDE7DF!important;opacity:.5!important}
 body.onb-start .blobs .b3{background:#FFFFFF!important;opacity:.7!important}
+/* ===== Desktop landing (laptops): Notion-like split hero in Daylo colors ===== */
+@media (max-width:900px){.lp-desktop{display:none!important}}
+@media (min-width:901px){
+  .lp-mobile{display:none!important}
+  body.onb-start .onb-wrap{max-width:1180px!important;width:100%;padding:0 40px 30px!important;display:block!important;text-align:left!important;min-height:auto!important;margin:0 auto}
+}
+.lp-nav{display:flex;justify-content:space-between;align-items:center;padding:24px 0}
+.lp-brand{display:flex;align-items:center;gap:10px;font:400 26px var(--f-display);color:var(--fg)}
+.lp-mark{width:36px;height:36px;border-radius:11px;background:#8A6F5A;color:#fff;display:grid;place-items:center;font:400 21px var(--f-display)}
+.lp-navr{display:flex;gap:10px;align-items:center}
+.lp-link{border:0;background:none;font:500 14.5px var(--f-body);color:var(--fg);cursor:pointer;padding:9px 14px;border-radius:999px}
+.lp-link:hover{background:#EFEBE4}
+.lp-nav .btn.primary{padding:10px 20px!important}
+.lp-hero{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center;min-height:calc(100vh - 120px);padding-bottom:30px}
+.lp-eyebrow{font:500 12px var(--f-body);letter-spacing:.22em;text-transform:uppercase;color:#8A6F5A}
+.lp-h1{font:400 78px/1 var(--f-display)!important;letter-spacing:-.02em;margin:18px 0 0;color:var(--fg)}
+.lp-h1 em{color:#8A6F5A;font-style:italic}
+.lp-sub{font-size:18px;line-height:1.6;color:var(--muted);max-width:29em;margin:24px 0 30px}
+.lp-copy .onb-actions{flex-direction:row!important;max-width:none!important;align-items:center;flex-wrap:wrap;gap:12px!important}
+.lp-copy .start-with{display:none}
+.lp-copy .onb-big{width:auto!important;padding:16px 28px!important}
+.lp-copy .acct-list{max-width:420px;margin-bottom:18px}
+.lp-fine{display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--muted);margin-top:20px}.lp-fine .ico{width:16px;height:16px;color:#8A6F5A}
+.lp-visual{position:relative;height:660px;display:grid;place-items:center}
+.lp-glow{position:absolute;inset:4% 0;border-radius:50%;background:radial-gradient(circle at 50% 45%,#E6DDD1 0%,rgba(230,221,209,0) 66%)}
+.lp-phone{position:relative;width:320px;height:640px;border-radius:48px;background:#2f2924;padding:10px;box-shadow:0 40px 80px rgba(80,60,45,.25);transform:rotate(-2.5deg)}
+.lp-screen{width:100%;height:100%;border-radius:38px;background:#F4F5F0;overflow:hidden;padding:14px;display:flex;flex-direction:column;gap:10px}
+.lp-bar{display:flex;justify-content:space-between;align-items:center;font:400 19px var(--f-display);padding:8px 6px 2px;color:var(--fg)}.lp-bar .ico{width:18px;height:18px}
+.lp-screen .b-hero{padding:16px!important;border-radius:22px!important}
+.lp-screen .b-greet{font-size:26px!important;margin-top:8px!important}
+.lp-screen .b-av{width:32px;height:32px;font-size:13px}
+.lp-screen .b-next{margin-top:12px!important;padding:9px 10px!important}
+.lp-screen .b-t1{font-size:13px!important}.lp-screen .b-t2{font-size:11px!important}
+.lp-screen .b-prog{margin-top:10px!important;font-size:11px!important}
+.lp-screen .b-seg{margin:6px 0 0!important;display:flex;gap:6px}
+.lp-screen .b-seg span{padding:7px 12px;border-radius:999px;font:500 12px var(--f-body);background:#FFFFFE;color:#8f857b;box-shadow:0 0 0 1px #E9E6DF inset}
+.lp-screen .b-seg span.on{background:#8A6F5A;color:#fff;box-shadow:none}
+.lp-screen .b-list{margin-top:4px!important;gap:8px!important}
+.lp-screen .b-card{padding:8px!important;border-radius:16px!important}
+.lp-screen .b-th{width:42px!important;height:42px!important;border-radius:12px!important}
+.lp-screen .b-pill{font-size:10px!important;padding:4px 8px!important}
+.lp-float{position:absolute;display:flex;gap:12px;align-items:center;padding:12px 16px;border-radius:18px;background:rgba(255,255,254,.94);box-shadow:0 18px 40px rgba(80,60,45,.14),0 0 0 1px #EEEBE5 inset;font-size:13px;color:var(--fg);animation:lpfloat 6s ease-in-out infinite}
+.lp-float b{display:block;font-weight:600;font-size:13.5px}.lp-float span{color:var(--muted);font-size:12px}
+.lp-f1{top:70px;left:-6px}.lp-f2{top:300px;right:-24px;animation-delay:-2s}.lp-f3{bottom:44px;left:16px;animation-delay:-4s}
+.lp-fi{width:38px;height:38px;border-radius:12px;background:#F0EDE7;color:#8A6F5A;display:grid;place-items:center;flex:none}.lp-fi .ico{width:18px;height:18px}
+@keyframes lpfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+.lp-feats{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;padding:30px 0 20px}
+.lp-feat{background:rgba(255,255,254,.85);border-radius:24px;padding:28px;box-shadow:0 0 0 1px #EEEBE5 inset}
+.lp-feat h3{font:400 25px/1.2 var(--f-display);margin:18px 0 8px;color:var(--fg)}.lp-feat p{color:var(--muted);font-size:14.5px;line-height:1.6;margin:0}
+.lp-foot{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 6px;letter-spacing:.14em;text-transform:uppercase}
+.onb-wrap.anim .lp-copy>*{animation:rise .9s cubic-bezier(.2,.7,.2,1) both}
+.onb-wrap.anim .lp-copy>*:nth-child(2){animation-delay:.12s}.onb-wrap.anim .lp-copy>*:nth-child(3){animation-delay:.24s}.onb-wrap.anim .lp-copy>*:nth-child(n+4){animation-delay:.36s}
+.onb-wrap.anim .lp-phone{animation:rise 1.1s cubic-bezier(.2,.7,.2,1) both .2s}
+.onb-wrap.anim .lp-feat{animation:rise .9s both .5s}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 /* Themes people pick at first open or in Settings. "colorful" is the default floating look. */
 :root[data-theme="grey"]{--bg:#ececea;--side:#f2f2f0;--blob-a:#d6d6d3;--blob-b:#cdd1d4;--blob-c:#e2e2df;--cv-a:#dedede;--cv-b:#d6d9db;--gift:#e9e9e7;--gift-fg:#55554f;color-scheme:light}
@@ -2273,15 +2327,49 @@ function renderOnboarding(){
 
   /* start screen */
   const list=[...ACCTS].sort((a,b)=>(b.lastAt||0)-(a.lastAt||0));
-  wrap(ringLogo(),
-    h('p',{class:'onb-tag'},'Where your days take shape.'),
-    list.length?h('div',{class:'acct-list'},list.map(a=>h('button',{class:'acct',type:'button',onclick:async()=>{if(a.hash){ONB.pick=a.email;step('password')}else{await enterAccount(a.email);finishEntry()}}},
-      faceOf(a),h('span',{class:'grow'},h('b',null,a.name||a.email.split('@')[0]),h('span',null,a.guest?'Trying Daylo':a.email)),h('span',{class:'acct-go','aria-hidden':'true'},'›')))):null,
-    h('div',{class:'onb-actions'},
+  const acctList=list.length?h('div',{class:'acct-list'},list.map(a=>h('button',{class:'acct',type:'button',onclick:async()=>{if(a.hash){ONB.pick=a.email;step('password')}else{await enterAccount(a.email);finishEntry()}}},
+      faceOf(a),h('span',{class:'grow'},h('b',null,a.name||a.email.split('@')[0]),h('span',null,a.guest?'Trying Daylo':a.email)),h('span',{class:'acct-go','aria-hidden':'true'},'›')))):null;
+  const actions=()=>h('div',{class:'onb-actions'},
       h('div',{class:'start-with'},list.length?'Or start with':'Start with'),
       h('button',{class:'btn primary onb-big',onclick:()=>step('guest')},icon('user'),'Just my name'),
-      h('button',{class:'btn onb-big',onclick:()=>step('signin')},icon('mail'),'Email')),
-    h('p',{class:'onb-fine'},'Nothing is shared or sent without you.'));
+      h('button',{class:'btn onb-big',onclick:()=>step('signin')},icon('mail'),'Email'));
+  const hr=new Date().getHours();
+  const phone=h('div',{class:'lp-phone','aria-hidden':'true'},h('div',{class:'lp-screen'},
+    h('div',{class:'lp-bar'},h('span',null,'Daylo'),icon('bell')),
+    h('div',{class:'b-hero'},h('div',{class:'b-top'},h('span',{class:'b-eb'},new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})),h('span',{class:'b-av'},'S')),
+      h('div',{class:'b-greet'},h('em',null,hr<12?'Good morning,':hr<18?'Good afternoon,':'Good evening,'),h('br'),'Sam'),
+      h('div',{class:'b-next'},h('span',{class:'b-tm'},'3:30 PM'),h('span',{class:'b-nx'},h('span',{class:'b-t1'},'Shoot with Nina'),h('span',{class:'b-t2'},'Up next · Lumen Skincare'))),
+      h('div',{class:'b-prog'},h('span',null,'This week'),h('span',{class:'b-bar'},h('i',{style:'width:42%'})),h('span',null,'3 of 7'))),
+    h('div',{class:'b-seg'},h('span',{class:'on'},'Today'),h('span',null,'Week'),h('span',null,'Deals')),
+    h('div',{class:'b-list'},
+      [['mail','Reply to Maya','Lumen Skincare · usage rights','Late','late'],['refresh','Pitch 5 new brands','Routine · Mon, Thu, Fri','Today',''],['payments','Invoice Solace Swim','$450 · waiting 12 days','Money','']].map(([ic,a,b,p,c],k)=>
+        h('div',{class:'b-card'},h('div',{class:'b-th',style:'background:linear-gradient(135deg,'+['#F3EFE9,#DCD3C7','#EFEAE3,#CFC3B4','#F5F1EC,#D8CABA'][k]+')'},icon(ic)),h('div',{class:'b-txt'},h('div',{class:'b-t1'},a),h('div',{class:'b-t2'},b)),h('span',{class:'b-pill'+(c?' '+c:'')},p))))));
+  const floatA=h('div',{class:'lp-float lp-f1','aria-hidden':'true'},h('span',{class:'lp-fi'},icon('mail')),h('div',null,h('b',null,'New brand email'),h('span',null,'The Commense · collab')));
+  const floatB=h('div',{class:'lp-float lp-f2','aria-hidden':'true'},h('span',{class:'lp-fi'},icon('payments')),h('div',null,h('b',null,'$450 waiting'),h('span',null,'Reminder sent to you, not them')));
+  const floatC=h('div',{class:'lp-float lp-f3','aria-hidden':'true'},h('span',{class:'lp-fi'},icon('spark')),h('div',null,h('b',null,'Suggestion'),h('span',null,'Follow up with Kaleos today?')));
+  const feat=(ic,t,d)=>h('div',{class:'lp-feat'},h('span',{class:'lp-fi'},icon(ic)),h('h3',null,t),h('p',null,d));
+  wrap(
+    h('div',{class:'lp-desktop'},
+      h('header',{class:'lp-nav'},h('div',{class:'lp-brand'},h('span',{class:'lp-mark'},'D'),'Daylo'),h('div',{class:'lp-navr'},h('button',{class:'lp-link',onclick:()=>step('signin')},'Sign in'),h('button',{class:'btn primary',onclick:()=>step('guest')},'Try Daylo'))),
+      h('section',{class:'lp-hero'},
+        h('div',{class:'lp-copy'},
+          h('div',{class:'lp-eyebrow'},'Daylo · AI Assistant'),
+          h('h1',{class:'lp-h1'},'Where your days ',h('em',null,'take shape.')),
+          h('p',{class:'lp-sub'},'Your week, your projects, your emails and your money in one calm place. Made by a creator, for anyone who juggles too many apps.'),
+          acctList,actions(),
+          h('p',{class:'lp-fine'},icon('check'),'Try it with just your name. Nothing is shared or sent without you.')),
+        h('div',{class:'lp-visual'},h('div',{class:'lp-glow'}),phone,floatA,floatB,floatC)),
+      h('section',{class:'lp-feats'},
+        feat('today','Your day, gently in order','What’s next, what’s late and your routines, without ten different apps.'),
+        feat('campaigns','Deals and money together','Every brand deal with its fee, status and invoice, so nothing slips.'),
+        feat('spark','AI that asks first','Daylo suggests replies and next steps. Nothing goes out until you say yes.')),
+      h('footer',{class:'lp-foot'},'Daylo · Free while we test')),
+    h('div',{class:'lp-mobile'},ringLogo(),
+      h('p',{class:'onb-tag'},'Where your days take shape.'),
+      acctList?acctList.cloneNode(true)&&h('div',{class:'acct-list'},list.map(a=>h('button',{class:'acct',type:'button',onclick:async()=>{if(a.hash){ONB.pick=a.email;step('password')}else{await enterAccount(a.email);finishEntry()}}},
+        faceOf(a),h('span',{class:'grow'},h('b',null,a.name||a.email.split('@')[0]),h('span',null,a.guest?'Trying Daylo':a.email)),h('span',{class:'acct-go','aria-hidden':'true'},'›')))):null,
+      actions(),
+      h('p',{class:'onb-fine'},'Nothing is shared or sent without you.')));
 }
 
 async function upgradeGuest(email,pw){const old=CUR;const a=acct(old);if(!a)return 'Something went wrong. Reload and try again.';
