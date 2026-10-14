@@ -2644,7 +2644,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610141951';
+const BUILD_ID='202610141952';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -3165,7 +3165,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
   :root[data-theme="ivory"] .tab{color:#B3B1AD!important;background:none!important}
   :root[data-theme="ivory"] .tab[aria-current="page"]{background:none!important;color:#222120!important}
   :root[data-theme="ivory"] .tab[aria-current="page"] .ico{color:#222120!important}
-  :root[data-theme="ivory"] .tab.add.mic{background:#6E5A4C!important;color:#fff!important;width:54px!important;height:54px!important;margin-top:-10px;box-shadow:0 6px 18px rgba(110,90,76,.3)!important}
+  :root[data-theme="ivory"] .tab.add.mic{background:#222120!important;color:#FAFAF9!important;width:54px!important;height:54px!important;margin-top:-10px;box-shadow:0 6px 18px rgba(20,19,18,.22)!important}
   :root[data-theme="ivory"] .tab.add.mic .ico{color:#fff!important}
   :root[data-theme="ivory"] .main{padding-bottom:96px}
 }
@@ -3536,6 +3536,12 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .cv-num span{font:500 11px var(--f-body);letter-spacing:.16em;text-transform:uppercase;color:#857A70}
 .cv-go{display:flex;justify-content:space-between;align-items:center;border:1px solid #DCD3C8;border-radius:24px;background:#F5F1EB;color:#141312;padding:15px 20px;font:500 15px var(--f-body);cursor:pointer;margin-top:8px}
 @media (min-width:700px){.cv{min-height:520px;max-width:640px;margin:0 auto;width:100%}.cv-hl{font-size:56px}}
+`}));
+
+/* one quiet palette: ink accents instead of orange/brown */
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.tab .count{background:#222120!important}
+.bell-n{background:#222120!important;color:#FAFAF9!important}
 `}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
