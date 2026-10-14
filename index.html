@@ -2196,25 +2196,39 @@ const GMS={busy:false};
 function gmailReady(){return !!GOOGLE_CLIENT_ID}
 function loadGis(){if(gisP)return gisP;gisP=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=()=>res();s.onerror=()=>{gisP=null;rej(new Error('gis'))};document.head.append(s)});return gisP}
 function hintEmail(){const g=S.settings.gmailAddress||'';if(g)return g;return (typeof CUR==='string'&&/@/.test(CUR))?CUR:''}
+/* Google sign-in on the same screen (no pop-up): go to Google, come back with a pass */
+const GKEY='daylo-gpass';
+function lsGet(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch{return null}}
+function lsSet(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,JSON.stringify(v))}catch{}}
+(function grabPass(){
+  const hs=location.hash||'';if(!/access_token=|error=/.test(hs))return;
+  const q=new URLSearchParams(hs.slice(1));const want=lsGet('daylo-gstate');
+  try{history.replaceState(null,'',location.pathname)}catch{}
+  if(q.get('error')){GMS.backErr=q.get('error')==='access_denied'?'Gmail wasn’t allowed, so nothing was read.':'Google didn’t allow it this time. Try again.';return}
+  if(!want||q.get('state')!==want.state){return}
+  if(!/gmail\.readonly/.test(q.get('scope')||'')){GMS.backErr='Please tick the box that lets Daylo read your email, then try again.';return}
+  GTOK=q.get('access_token');GTOKexp=Date.now()+(Number(q.get('expires_in'))||3600)*1000;
+  lsSet(GKEY,{t:GTOK,exp:GTOKexp});GMS.autoFor=want.cur||'';lsSet('daylo-gstate',null);
+})();
+(function restorePass(){if(GTOK)return;const p=lsGet(GKEY);if(p&&p.t&&Date.now()<p.exp-60000){GTOK=p.t;GTOKexp=p.exp}})();
 function gToken(){
   if(GTOK&&Date.now()<GTOKexp-60000)return Promise.resolve(GTOK);
   if(!gmailReady())return Promise.reject({copy:'Gmail is almost ready. Try again soon.'});
-  if(!window.google||!google.accounts||!google.accounts.oauth2)return loadGis().then(gToken,()=>Promise.reject({copy:'Couldn’t reach Google. Check your connection and try again.'}));
-  return new Promise((res,rej)=>{
-    const c=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:GSCOPE,login_hint:hintEmail(),
-      callback:r=>{if(!r||r.error){rej({copy:r&&r.error==='access_denied'?'Gmail wasn’t allowed, so nothing was read.':'Google didn’t allow it this time. Try again.'});return}
-        try{if(google.accounts.oauth2.hasGrantedAllScopes&&!google.accounts.oauth2.hasGrantedAllScopes(r,GSCOPE)){rej({copy:'Please tick the box that lets Daylo read your email, then try again.'});return}}catch{}
-        GTOK=r.access_token;GTOKexp=Date.now()+(Number(r.expires_in)||3600)*1000;res(GTOK)},
-      error_callback:e=>rej({copy:e&&e.type==='popup_closed'?'The Google window was closed, so nothing was read.':e&&e.type==='popup_failed_to_open'?'Your browser blocked the Google window. Allow pop-ups for Daylo and try again.':'Couldn’t reach Google. Try again.'})});
-    c.requestAccessToken({prompt:''});
-  });
+  const state=Math.random().toString(36).slice(2)+Date.now().toString(36);
+  lsSet('daylo-gstate',{state,cur:(typeof CUR==='string'?CUR:''),at:Date.now()});
+  const u=new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  const ps={client_id:GOOGLE_CLIENT_ID,redirect_uri:location.origin+'/',response_type:'token',scope:GSCOPE,include_granted_scopes:'true',state};
+  const hint=hintEmail();if(hint)ps.login_hint=hint;
+  Object.entries(ps).forEach(([k,v])=>u.searchParams.set(k,v));
+  location.href=u.toString();
+  return new Promise(()=>{});
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function gget(path,params,tries){tries=tries||0;
   const u=new URL('https://gmail.googleapis.com/gmail/v1/users/me/'+path);
   if(params)Object.entries(params).forEach(([k,v])=>[].concat(v).forEach(x=>u.searchParams.append(k,x)));
   let r;try{r=await fetch(u,{headers:{Authorization:'Bearer '+GTOK}})}catch{throw {copy:'Gmail didn’t answer. Check your connection and try again.'}}
-  if(r.status===401){GTOK=null;throw {copy:'Your Google sign-in expired. Tap “Check Gmail” again.',expired:true}}
+  if(r.status===401){GTOK=null;lsSet(GKEY,null);throw {copy:'Your Google sign-in expired. Tap “Check Gmail” again.',expired:true}}
   if(r.status===429||r.status===403){let j={};try{j=await r.clone().json()}catch{}
     const why=((j.error&&j.error.errors&&j.error.errors[0]&&j.error.errors[0].reason)||'')+' '+((j.error&&j.error.message)||'');
     if(/rateLimit|quota|userRateLimit|Quota exceeded/i.test(why)||r.status===429){if(tries<4){GMS.wait&&GMS.wait();await sleep(15000*(tries+1));return gget(path,params,tries+1)}throw {copy:'Gmail is busy right now. Wait a minute and tap Check Gmail again.',stop:true}}
@@ -2338,14 +2352,18 @@ async function checkGmail(){
   const msg=h('p',{class:'muted'},'Reading your recent emails…');
   openDrawer('Reading your Gmail',h('div',{class:'empty'},h('span',{class:'spin'}),h('b',null,'One moment'),msg),null,{noFocus:true});
   try{
-    const q1=await gget('messages',{q:'newer_than:45d -category:social -category:forums -in:chats',maxResults:40});
-    const q2=await gget('messages',{q:'newer_than:90d (collab OR collaboration OR partnership OR sponsored OR campaign OR invoice OR payment OR paid OR rate OR brief OR shoot OR deliverables OR booking OR gifted)',maxResults:40});
-    const ids=[...new Set([...(q1.messages||[]),...(q2.messages||[])].map(m=>m.id))].slice(0,60);
-    const msgs=[];let i=0,done=0,stop=null;
-    const worker=async()=>{while(i<ids.length&&!stop){const id=ids[i++];try{const p=parseMsg(await gget('messages/'+id,{format:'full'}));if(p)msgs.push(p)}catch(e){if(e.expired||e.stop)stop=e}
-      done++;if(done%10===0)msg.textContent='Read '+done+' of '+ids.length+' emails…'}};
-    GMS.wait=()=>{msg.textContent='Gmail asked Daylo to slow down. Still reading, one moment…'};
-    await Promise.all([0,1].map(worker));GMS.wait=null;
+    const [q1,q2]=await Promise.all([gget('messages',{q:'newer_than:45d -category:social -category:promotions -category:forums -in:chats',maxResults:40}),
+      gget('messages',{q:'newer_than:90d (collab OR collaboration OR partnership OR sponsored OR campaign OR invoice OR payment OR paid OR rate OR brief OR shoot OR deliverables OR booking OR gifted)',maxResults:30})]);
+    const ids=[...new Set([...(q1.messages||[]),...(q2.messages||[])].map(m=>m.id))].slice(0,50);
+    msg.textContent='Reading '+ids.length+' emails…';
+    let msgs=[];let i=0,stop=null;
+    GMS.wait=()=>{msg.textContent='Almost there…'};
+    const run=async(list,fn,n)=>{let k=0;const w=async()=>{while(k<list.length&&!stop){const x=list[k++];try{await fn(x)}catch(e){if(e.expired||e.stop)stop=e}}};await Promise.all(Array.from({length:n},w))};
+    await run(ids,async id=>{const p=parseMsg(await gget('messages/'+id,{format:'metadata',metadataHeaders:['From','Subject','Date','List-Unsubscribe','Precedence']}));if(p){p.text=p.snippet;msgs.push(p)}},5);
+    const hot=msgs.filter(m=>!m.bulk&&!m.mine&&(KW.deal.test(m.subject+' '+m.snippet)||XCOLLAB.test(m.subject)||KW.money.test(m.subject+' '+m.snippet)||KW.date.test(m.subject+' '+m.snippet))).slice(0,15);
+    if(hot.length){msg.textContent='Looking closer at '+hot.length+' emails…';
+      await run(hot,async m=>{const f=await gget('messages/'+m.id,{format:'full'});const t=bodyOf(f.payload);if(t)m.text=t},4)}
+    GMS.wait=null;
     if(stop&&!msgs.length)throw stop;
     let addr='';try{addr=(await gget('profile')).emailAddress||''}catch{}
     const patch={gmailAt:Date.now(),gmailRecent:recentList(msgs),gmailRead:msgs.length};
@@ -2449,7 +2467,11 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .gm-acts{display:flex;gap:6px;flex:none}
 @media(max-width:560px){.gm-acts{flex-direction:column}}
 `}));
-if(gmailReady())setTimeout(()=>loadGis().catch(()=>{}),1200);
+
+(function afterGoogle(){let n=0;const t=setInterval(()=>{n++;
+  if(GMS.backErr&&typeof toast==='function'&&S.booted){clearInterval(t);toast(GMS.backErr);GMS.backErr='';return}
+  if(GMS.autoFor!==undefined&&S.booted&&(!ACCOUNTS_ON||CUR)&&S.settings.onboarded){clearInterval(t);const f=GMS.autoFor;GMS.autoFor=undefined;if(!f||f===CUR)checkGmail();return}
+  if(n>60)clearInterval(t)},500)})();
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
