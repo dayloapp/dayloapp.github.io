@@ -2644,7 +2644,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610141901';
+const BUILD_ID='202610141914';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -2975,10 +2975,15 @@ async function openMail(threadId){
   if(!ms.length){body.replaceWith(emptyState('Empty','This conversation has no messages.'));return}
   const last=ms[ms.length-1];const them=[...ms].reverse().find(x=>!x.p.mine)||last;
   const subj=them.p.subject.replace(/^(re|fwd?):\s*/i,'');
-  const view=h('div',{class:'mail-view'},h('h2',{class:'mail-subj'},subj),
+  const tagOf=t=>/\b(collab|partnership|sponsor|campaign|gift|brief|ugc|ambassador)/i.test(t)?'Collab':/\b(invoice|payment|paid|payout)/i.test(t)?'Money':/\b(shoot|call time|event|meeting|fitting)/i.test(t)?'Date':'Email';
+  const brandL=guessBrand(them.p.from)||them.p.fromName;const allText=ms.map(x=>x.p.subject+' '+(x.p.text||'')).join(' ');
+  const view=h('div',{class:'mail-view reflect'},
+    h('span',{class:'mv-label'},brandL+' · '+tagOf(allText)),
+    h('h2',{class:'mail-subj'},subj),
+    h('p',{class:'mv-meta'},(them.p.fromName||'')+' · '+fmtWhen(last.p.at)+(ms.length>1?' · '+ms.length+' messages':'')),
     ms.slice(-4).map((x,i,arr)=>{const atts=partsOf(x.m.payload).filter(a=>!a.inline||!/^image\//.test(a.type)||a.size>30000);const links=(x.p.text||'').match(/https?:\/\//)?[]:htmlLinks(x.m.payload);
       return h('div',{class:'mail-msg'+(i===arr.length-1?' last':'')},
-        h('div',{class:'mail-from'},h('div',{class:'avatar'},initials(x.p.fromName||'?')),h('div',{class:'grow'},h('b',null,x.p.mine?'You':x.p.fromName),h('div',{class:'small muted'},fmtWhen(x.p.at)))),
+        arr.length>1?h('p',{class:'mv-who'},(x.p.mine?'You':x.p.fromName)+' · '+fmtWhen(x.p.at)):null,
         h('div',{class:'mail-body'},linkify((x.p.text||x.p.snippet||'').slice(0,6000))),
         atts.length?h('div',{class:'mail-atts'},atts.map(a=>{const b=h('button',{class:'mail-att',onclick:()=>openAttachment(x.m.id,a,b)},icon(/^image\//.test(a.type)?'camera':'pen'),h('span',null,h('b',null,a.name),h('small',null,kb(a.size))));return b})):null,
         links.length?h('div',{class:'mail-links'},links.map(l=>h('a',{href:l.u,target:'_blank',rel:'noopener'},icon('ext'),l.label))):null)}));
@@ -3008,12 +3013,12 @@ async function checkEnglish(ta,lang){
   speakIfOn(ms.length+' thing'+(ms.length===1?'':'s')+' to fix.');
 }
 function speakIfOn(t){if(typeof speak==='function'&&S.settings.talkBack!==false&&VO.sheet)speak(t)}
-function openSheetCheck(content){closeCheck();const l=h('div',{class:'vo-layer ck-layer',onclick:e=>{if(e.target===l)closeCheck()}},h('div',{class:'vo-card ck-card'},h('div',{class:'vo-status'},'Check my English'),content));document.body.append(l);requestAnimationFrame(()=>l.classList.add('on'))}
+function openSheetCheck(content){closeCheck();const l=h('div',{class:'vo-layer ck-layer',onclick:e=>{if(e.target===l)closeCheck()}},h('div',{class:'vo-card ck-card'},h('div',{class:'vo-status'},'Polish'),content));document.body.append(l);requestAnimationFrame(()=>l.classList.add('on'))}
 function closeCheck(){const l=document.querySelector('.ck-layer');if(l){l.classList.remove('on');setTimeout(()=>l.remove(),250)}}
 /* add the button to the email writer */
 const _drawComposer=drawComposer;
 drawComposer=function(){_drawComposer();try{if(CP&&CP.step==='edit'){const ta=document.getElementById('cp-body');if(ta&&!document.getElementById('ck-btn')){ta.setAttribute('spellcheck','true');ta.setAttribute('autocorrect','on');
-  const b=h('button',{class:'btn sm ck-btn',id:'ck-btn',type:'button',onclick:()=>checkEnglish(ta)},icon('spark'),'Check my English');ta.closest('.field').after(b)}}}catch(e){console.error(e)}};
+  const live=h('div',{class:'live-sug',id:'live-sug'});const b=h('button',{class:'btn sm ck-btn',id:'ck-btn',type:'button',onclick:()=>checkEnglish(ta)},icon('spark'),'Polish');ta.closest('.field').after(live,b);ta.addEventListener('input',()=>liveCheck(ta,live));if(ta.value.trim().length>20)liveCheck(ta,live)}}}catch(e){console.error(e)}};
 
 /* ---------- voice: open an email by name ("open the email from Kaleos") ---------- */
 const _handleSaid=handleSaid;
@@ -3055,6 +3060,39 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .ck-row s{color:#B0593F}.ck-row.done{opacity:.45}.ck-row.done button{visibility:hidden}
 .ck-ok{display:flex;flex-direction:column;align-items:center;gap:6px;padding:20px;color:var(--primary)}
 .vo-pick{border:0;cursor:pointer;text-align:left;flex-direction:column;align-items:flex-start;gap:2px}
+`}));
+
+/* live writing suggestions under the message, like Gmail */
+let LV={t:null,seq:0};
+function liveCheck(ta,box){
+  clearTimeout(LV.t);LV.t=setTimeout(async()=>{
+    const text=ta.value;if(text.trim().length<12){box.replaceChildren();return}
+    const seq=++LV.seq;box.classList.add('busy');
+    let j;try{const r=await fetch('https://api.languagetool.org/v2/check',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({text,language:'auto',preferredVariants:'en-US',level:'picky'})});j=await r.json()}catch{box.classList.remove('busy');return}
+    if(seq!==LV.seq||ta.value!==text)return;box.classList.remove('busy');
+    const ms=(j.matches||[]).filter(m=>m.replacements&&m.replacements.length).slice(0,8);
+    if(!ms.length){box.replaceChildren(h('span',{class:'ls-ok'},icon('check'),'Reads well'));return}
+    const apply=(m)=>{const cur=ta.value;const bad=text.substr(m.offset,m.length);if(cur.substr(m.offset,m.length)!==bad){liveCheck(ta,box);return}ta.value=cur.slice(0,m.offset)+m.replacements[0].value+cur.slice(m.offset+m.length);if(CP)CP.body=ta.value;liveCheck(ta,box)};
+    box.replaceChildren(h('span',{class:'ls-h'},'Suggestions'),
+      ...ms.map(m=>h('button',{type:'button',class:'ls-chip',title:m.message,onclick:()=>apply(m)},h('s',null,text.substr(m.offset,m.length)||'·'),' → ',h('b',null,m.replacements[0].value||'(remove)'))),
+      ms.length>1?h('button',{type:'button',class:'ls-all',onclick:()=>{let v=ta.value;[...ms].sort((a,b)=>b.offset-a.offset).forEach(m=>{if(v.substr(m.offset,m.length)===text.substr(m.offset,m.length))v=v.slice(0,m.offset)+m.replacements[0].value+v.slice(m.offset+m.length)});ta.value=v;if(CP)CP.body=v;liveCheck(ta,box)}},'Fix all'):null);
+  },1200);
+}
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.mail-view.reflect{display:flex;flex-direction:column;gap:12px}
+.mv-label{align-self:flex-start;font:500 10.5px var(--f-body);letter-spacing:.22em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:6px}
+.mail-view.reflect .mail-subj{font:300 34px/1.06 var(--f-display)!important;letter-spacing:-.01em;margin:4px 0 0!important}
+.mv-meta{font:300 italic 15px var(--f-display);color:var(--muted);margin:0}
+.mv-who{font:300 italic 13.5px var(--f-display);color:var(--muted);margin:0 0 6px}
+.mail-view.reflect .mail-msg{border-top:1px solid var(--line);padding:14px 0 6px}
+.mail-view.reflect .mail-from{display:none}
+.live-sug{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:6px;margin-top:-4px}
+.live-sug.busy{opacity:.6}
+.ls-h{font:500 10.5px var(--f-body);letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-right:2px}
+.ls-chip{border:1px solid var(--line);background:var(--card,#fff);border-radius:99px;padding:5px 10px;font:400 12.5px var(--f-body);color:var(--fg);cursor:pointer}
+.ls-chip s{color:#A5503A}
+.ls-all{border:0;background:none;color:var(--primary);font:500 12.5px var(--f-body);cursor:pointer;padding:5px}
+.ls-ok{display:inline-flex;gap:6px;align-items:center;font:400 12.5px var(--f-body);color:#4F6B4A}.ls-ok svg{width:14px;height:14px}
 `}));
 
 /* ---------- Studio look: bright, editorial, hairlines, less text ---------- */
@@ -3205,6 +3243,28 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 :root[data-theme="ivory"] .vo-say,:root[data-theme="ivory"] .vo-live{font-family:"Source Serif 4",Georgia,serif!important;font-weight:300!important}
 :root[data-theme="ivory"] .drawer-head h2{font-weight:400!important}
 :root[data-theme="ivory"] .b-eb,:root[data-theme="ivory"] .panel-head h2{letter-spacing:.14em!important;text-transform:uppercase!important;font-size:11px!important;font-weight:500!important}
+`}));
+
+/* inbox list L1: brand in small capitals, the subject in the book serif */
+function gmailInboxPanel(){
+  const st=S.settings;const list=(st.gmailRecent||[]);
+  if(!st.gmailAt)return h('section',{class:'panel'},h('div',{class:'panel-body form'},h('p',{class:'muted'},'Connect Gmail to see your emails here.'),h('div',{class:'row'},h('button',{class:'btn primary',onclick:checkGmail},icon('mail'),'Connect Gmail'))));
+  const people=list.filter(m=>!m.bulk);const shown=people.length?people:list;
+  const when=ms=>{const d=new Date(ms);return ymd(d)===ymd()?d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):d.toLocaleDateString(undefined,{weekday:'short'})};
+  return h('section',{class:'panel l1'},h('div',{class:'panel-head'},h('h2',null,'Inbox'),h('button',{class:'btn sm ghost',onclick:checkGmail},icon('refresh'))),
+    shown.length?h('div',{class:'l1-list'},shown.map(m=>h('button',{class:'l1-row'+(m.unread?' unread':''),onclick:()=>openMail(m.threadId)},
+      h('span',{class:'l1-top'},h('span',{class:'l1-brand'},guessBrand({name:m.fromName,email:m.email})||m.fromName),h('span',{class:'l1-time'},when(m.at))),
+      h('span',{class:'l1-title'},m.subject||'(no subject)'))))
+    :emptyState('No emails yet','Nothing came in recently.'));
+}
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.l1-list{display:flex;flex-direction:column}
+.l1-row{display:flex;flex-direction:column;gap:4px;padding:13px 2px;border:0;border-top:1px solid var(--line);background:none;text-align:left;cursor:pointer;color:var(--fg);font:inherit}
+.l1-top{display:flex;justify-content:space-between;gap:10px}
+.l1-brand{font:500 10.5px var(--f-body);letter-spacing:.2em;text-transform:uppercase;color:var(--fg)}
+.l1-time{font:500 10.5px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.l1-title{font:400 18px/1.25 var(--f-display);color:var(--fg)}
+.l1-row.unread .l1-brand::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--primary);margin-right:7px;vertical-align:1px}
 `}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
