@@ -2644,7 +2644,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610141941';
+const BUILD_ID='202610141947';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -3468,6 +3468,75 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 /* rename Day tab to Month */
 document.addEventListener('click',()=>{},true);
 (function(){const fix=()=>document.querySelectorAll('[aria-label="Schedule view"] [role=tab]').forEach(b=>{if(b.textContent==='Day')b.textContent='Month'});new MutationObserver(fix).observe(document.documentElement,{childList:true,subtree:true})})();
+
+/* ---------- Today = H3 cocoa cover with a daily headline that reacts to your day ---------- */
+const HL={
+ late:[['{late} thing{s} running late.','Fashionably, of course.'],['Something’s late.','We won’t tell. Today.'],['{late} late.','Deadlines are more of a vibe, right?']],
+ money:[['{sum} is on its way.','Act surprised.'],['Someone owes you {sum}.','We’re not saying it’s personal.'],['{sum} waiting for you.','Patience looks good on you.'],['{sum} pending.','Manifesting faster payments.']],
+ mails:[['{mail} emails.','Bold of them to assume you’re free.'],['{mail} emails waiting.','Three of them matter.'],['Your inbox has','opinions.'],['{mail} emails.','Coffee first. Obviously.']],
+ busy:[['A busy {day}.','You’ve got this. Mostly.'],['{todo} things today.','Hydrate between them.'],['Full day ahead.','Main-character schedule.'],['{todo} to do.','Pace yourself, icon.']],
+ free:[['Nothing due today.','Suspicious.'],['Your schedule is empty.','Enjoy it before brands find out.'],['A free {day}.','Plan something. Or don’t.'],['Zero tasks.','Is this what peace feels like?']],
+ deliver:[['{deliver} deal{s2} to deliver.','The content won’t shoot itself.'],['Brands are waiting.','In the nicest way.']],
+ mon:[['Monday.','Let’s pretend we’re ready.'],['New week.','Same iconic you.']],
+ fri:[['Friday.','The inbox can wait. Probably.'],['It’s Friday.','Reply now, rest later.']],
+ wknd:[['Weekend mode.','Mostly.'],['It’s the weekend.','Only answer the good emails.']],
+ any:[['{day}:','Monday’s more organized cousin.'],['Today’s plan:','look good, get paid.'],['Hello, {day}.','Let’s make it count.']]
+};
+function dailyHeadline(d){
+  const pool=[];const add=k=>HL[k].forEach(x=>pool.push(x));
+  if(d.late)add('late');if(d.sumTxt)add('money');if(d.mail>=8)add('mails');
+  if(d.todo>=4)add('busy');if(!d.todo)add('free');if(d.deliver)add('deliver');
+  const wd=new Date().getDay();if(wd===1)add('mon');if(wd===5)add('fri');if(wd===0||wd===6)add('wknd');
+  if(pool.length<3)add('any');
+  const seed=ymd().split('-').reduce((a,b)=>a*31+Number(b),7)+(S.hlBump||0);
+  const pick=pool[Math.abs(seed)%pool.length];
+  const fill=s=>s.replace(/\{(\w+)\}/g,(_,k)=>k==='s'?(d.late===1?'':'s'):k==='s2'?(d.deliver===1?'':'s'):k==='sum'?d.sumTxt:k==='day'?d.dayName:String(d[k]));
+  return [fill(pick[0]),fill(pick[1])];
+}
+function pageToday(){
+  try{playIntro()}catch{}
+  const t=ymd();
+  const todo=S.tasks.filter(x=>!x.done&&x.due&&x.due<=t).length;
+  const late=S.tasks.filter(x=>!x.done&&x.due&&x.due<t).length;
+  const mailAll=(S.settings.gmailRecent||[]).filter(m=>!m.bulk);const unread=mailAll.filter(m=>m.unread).length;
+  const waiting=S.campaigns.filter(c=>typeof dealBucket==='function'&&dealBucket(c)==='waiting');
+  const owedMail=(S.settings.gmailMoney||[]).filter(x=>x.kind==='owed'&&!waiting.some(c=>c.threadId===x.threadId));
+  const sums={};waiting.forEach(c=>{const v=Number(c.feeConfirmed||0);if(v){const k=c.currency||defCur();sums[k]=(sums[k]||0)+v}});owedMail.forEach(x=>{if(x.amount)sums[x.amount.cur]=(sums[x.amount.cur]||0)+x.amount.n});
+  const sumTxt=Object.entries(sums).map(([k,v])=>{try{return new Intl.NumberFormat(undefined,{style:'currency',currency:k,maximumFractionDigits:0}).format(v)}catch{return v+' '+k}}).join(' + ');
+  const deliver=S.campaigns.filter(c=>typeof dealBucket==='function'&&dealBucket(c)==='deliver').length;
+  const mail=unread||mailAll.length;
+  const dayName=new Date().toLocaleDateString(undefined,{weekday:'long'});
+  const [a,b]=dailyHeadline({todo,late,mail,sumTxt,deliver,dayName});
+  const num=(n,l,fn)=>h('button',{class:'cv-num',onclick:fn},h('b',null,n),h('span',null,l));
+  const empty=!S.campaigns.length&&!S.tasks.length&&!S.settings.gmailAt;
+  return h('div',{class:'page cv-page'},
+    h('section',{class:'cv'},
+      h('span',{class:'cv-date'},dayName+' · '+new Date().toLocaleDateString(undefined,{month:'short',day:'numeric'})),
+      h('h1',{class:'cv-hl',title:'Tap for another one',onclick:()=>{S.hlBump=(S.hlBump||0)+1;renderMain()}},a+' ',h('em',null,b)),
+      h('div',{class:'cv-grow'}),
+      h('div',{class:'cv-nums'},
+        num(String(todo),'To do',()=>{S.dayPick=t;S.schedView='day';go('schedule')}),
+        num(S.settings.gmailAt?String(mail):'—','Emails',()=>S.settings.gmailAt?go('inbox'):checkGmail()),
+        num(sumTxt||'$0','Owed',()=>go('payments'))),
+      h('button',{class:'cv-go',onclick:()=>{S.dayPick=t;S.schedView='day';go('schedule')}},h('span',null,'Open my day'),h('span',null,'→'))),
+    empty&&typeof welcomeCard==='function'?welcomeCard():null,
+    typeof guestBanner==='function'?guestBanner():null,
+    S.settings.demo&&typeof demoBanner==='function'?demoBanner():null);
+}
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.cv-page{display:flex;flex-direction:column;gap:16px}
+.cv{--cv:#8C7768;background:var(--cv);color:#FAFAF9;border-radius:30px;padding:26px 24px 22px;min-height:calc(100dvh - 230px);display:flex;flex-direction:column;gap:14px}
+.cv-date{font:500 11px var(--f-body);letter-spacing:.2em;text-transform:uppercase;color:rgba(250,250,249,.82)}
+.cv-hl{color:#FAFAF9!important;font:400 46px/1.04 var(--f-display);letter-spacing:-.025em;margin:4px 0 0;cursor:pointer;text-wrap:balance;-webkit-tap-highlight-color:transparent}
+.cv-hl em{font-style:italic;font-weight:300;color:#F0E6DC!important}
+.cv-grow{flex:1;min-height:20px}
+.cv-nums{display:flex;gap:26px;flex-wrap:wrap}
+.cv-num{display:flex;flex-direction:column;gap:2px;border:0;background:none;color:inherit;padding:0;text-align:left;cursor:pointer;font:inherit}
+.cv-num b{font:400 40px/1 var(--f-display);font-weight:400}
+.cv-num span{font:500 11px var(--f-body);letter-spacing:.16em;text-transform:uppercase;color:rgba(250,250,249,.82)}
+.cv-go{display:flex;justify-content:space-between;align-items:center;border:0;border-radius:24px;background:#FAFAF9;color:#141312;padding:15px 20px;font:500 15px var(--f-body);cursor:pointer;margin-top:8px}
+@media (min-width:700px){.cv{min-height:520px;max-width:640px;margin:0 auto;width:100%}.cv-hl{font-size:56px}}
+`}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
