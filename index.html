@@ -2644,7 +2644,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610141843';
+const BUILD_ID='202610141855';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -3146,13 +3146,17 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 
 /* ---------- the Daylo mark (sunrise over your list), used instead of the name ---------- */
 function logoMark(size,draw){const s=document.createElement('span');s.className='logo-mark'+(draw?' draw':'');s.setAttribute('aria-label','Daylo');s.setAttribute('role','img');
-  s.innerHTML='<svg width="'+(size||28)+'" height="'+(size||28)+'" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path pathLength="1" d="M11 29a13 13 0 0 1 26 0"/><path pathLength="1" d="M6 29h36"/><path pathLength="1" d="M15 36h18" opacity=".5"/></svg>';return s}
+  const z=size||28;s.innerHTML='<svg width="'+z+'" height="'+z+'" viewBox="0 0 48 48"><path class="ld-d" d="M9 8h14a16 16 0 0 1 0 32H9z" fill="currentColor"/><rect class="ld-r r1" x="7" y="18" width="36" height="3" fill="var(--bg,#FAFAF9)"/><rect class="ld-r r2" x="7" y="27" width="36" height="3" fill="var(--bg,#FAFAF9)"/></svg>';return s}
 (function splashMark(){const sp=document.getElementById('splash');if(!sp)return;const i=sp.querySelector('.sp-in');if(i)i.replaceChildren(logoMark(92,true))})();
 document.head.append(Object.assign(document.createElement('style'),{textContent:`
 .logo-mark{display:inline-grid;place-items:center;color:#6E5A4C;line-height:0}
 .brand .logo-mark{color:#222120}
-.logo-mark.draw path{stroke-dasharray:1;stroke-dashoffset:1;animation:spDraw .9s ease forwards}
-.logo-mark.draw path:nth-child(2){animation-delay:.25s}.logo-mark.draw path:nth-child(3){animation-delay:.45s}
+.logo-mark.draw .ld-d{transform-origin:50% 50%;animation:ldIn .7s cubic-bezier(.2,.8,.2,1) both}
+.logo-mark.draw .ld-r{transform-box:fill-box;transform-origin:left center;animation:ldRow .55s cubic-bezier(.2,.8,.2,1) both .45s}
+.logo-mark.draw .r2{animation-delay:.6s}
+@keyframes ldIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}
+@keyframes ldRow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media (prefers-reduced-motion:reduce){.logo-mark.draw *{animation:none!important}}
 `}));
 
 /* ---------- stay inside Daylo: no "open in Gmail" ---------- */
