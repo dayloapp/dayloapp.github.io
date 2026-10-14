@@ -2203,17 +2203,24 @@ function gToken(){
   return new Promise((res,rej)=>{
     const c=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:GSCOPE,login_hint:hintEmail(),
       callback:r=>{if(!r||r.error){rej({copy:r&&r.error==='access_denied'?'Gmail wasn’t allowed, so nothing was read.':'Google didn’t allow it this time. Try again.'});return}
+        try{if(google.accounts.oauth2.hasGrantedAllScopes&&!google.accounts.oauth2.hasGrantedAllScopes(r,GSCOPE)){rej({copy:'Please tick the box that lets Daylo read your email, then try again.'});return}}catch{}
         GTOK=r.access_token;GTOKexp=Date.now()+(Number(r.expires_in)||3600)*1000;res(GTOK)},
       error_callback:e=>rej({copy:e&&e.type==='popup_closed'?'The Google window was closed, so nothing was read.':e&&e.type==='popup_failed_to_open'?'Your browser blocked the Google window. Allow pop-ups for Daylo and try again.':'Couldn’t reach Google. Try again.'})});
     c.requestAccessToken({prompt:''});
   });
 }
-async function gget(path,params){
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function gget(path,params,tries){tries=tries||0;
   const u=new URL('https://gmail.googleapis.com/gmail/v1/users/me/'+path);
   if(params)Object.entries(params).forEach(([k,v])=>[].concat(v).forEach(x=>u.searchParams.append(k,x)));
   let r;try{r=await fetch(u,{headers:{Authorization:'Bearer '+GTOK}})}catch{throw {copy:'Gmail didn’t answer. Check your connection and try again.'}}
   if(r.status===401){GTOK=null;throw {copy:'Your Google sign-in expired. Tap “Check Gmail” again.',expired:true}}
-  if(r.status===403||r.status===429){throw {copy:r.status===429?'Gmail asked us to slow down. Try again in a minute.':'Google didn’t allow reading this inbox yet. While Daylo is in testing, your email has to be on the tester list.',stop:true}}
+  if(r.status===429||r.status===403){let j={};try{j=await r.clone().json()}catch{}
+    const why=((j.error&&j.error.errors&&j.error.errors[0]&&j.error.errors[0].reason)||'')+' '+((j.error&&j.error.message)||'');
+    if(/rateLimit|quota|userRateLimit|Quota exceeded/i.test(why)||r.status===429){if(tries<4){GMS.wait&&GMS.wait();await sleep(15000*(tries+1));return gget(path,params,tries+1)}throw {copy:'Gmail is busy right now. Wait a minute and tap Check Gmail again.',stop:true}}
+    if(/insufficient|scope/i.test(why)){GTOK=null;throw {copy:'Daylo needs permission to read your email. Tap Connect Gmail again and tick the Gmail box.',stop:true,expired:true}}
+    if(/has not been used|disabled/i.test(why))throw {copy:'Gmail is still switching on at Google. Try again in a few minutes.',stop:true};
+    throw {copy:r.status===429?'Gmail asked us to slow down. Try again in a minute.':'Google didn’t allow reading this inbox yet. While Daylo is in testing, your email has to be on the tester list.',stop:true}}
   if(!r.ok)throw {copy:'Gmail didn’t answer. Try again.'};
   return r.json();
 }
@@ -2330,13 +2337,14 @@ async function checkGmail(){
   const msg=h('p',{class:'muted'},'Reading your recent emails…');
   openDrawer('Reading your Gmail',h('div',{class:'empty'},h('span',{class:'spin'}),h('b',null,'One moment'),msg),null,{noFocus:true});
   try{
-    const q1=await gget('messages',{q:'newer_than:45d -category:social -category:forums -in:chats',maxResults:70});
-    const q2=await gget('messages',{q:'newer_than:90d (collab OR collaboration OR partnership OR sponsored OR campaign OR invoice OR payment OR paid OR rate OR brief OR shoot OR deliverables OR booking OR gifted)',maxResults:60});
-    const ids=[...new Set([...(q1.messages||[]),...(q2.messages||[])].map(m=>m.id))].slice(0,110);
+    const q1=await gget('messages',{q:'newer_than:45d -category:social -category:forums -in:chats',maxResults:40});
+    const q2=await gget('messages',{q:'newer_than:90d (collab OR collaboration OR partnership OR sponsored OR campaign OR invoice OR payment OR paid OR rate OR brief OR shoot OR deliverables OR booking OR gifted)',maxResults:40});
+    const ids=[...new Set([...(q1.messages||[]),...(q2.messages||[])].map(m=>m.id))].slice(0,60);
     const msgs=[];let i=0,done=0,stop=null;
     const worker=async()=>{while(i<ids.length&&!stop){const id=ids[i++];try{const p=parseMsg(await gget('messages/'+id,{format:'full'}));if(p)msgs.push(p)}catch(e){if(e.expired||e.stop)stop=e}
       done++;if(done%10===0)msg.textContent='Read '+done+' of '+ids.length+' emails…'}};
-    await Promise.all([0,1,2,3,4,5].map(worker));
+    GMS.wait=()=>{msg.textContent='Gmail asked Daylo to slow down. Still reading, one moment…'};
+    await Promise.all([0,1].map(worker));GMS.wait=null;
     if(stop&&!msgs.length)throw stop;
     let addr='';try{addr=(await gget('profile')).emailAddress||''}catch{}
     const patch={gmailAt:Date.now(),gmailRecent:recentList(msgs),gmailRead:msgs.length};
