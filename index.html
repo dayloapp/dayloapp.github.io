@@ -2644,7 +2644,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610141914';
+const BUILD_ID='202610141920';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -3265,6 +3265,62 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .l1-time{font:500 10.5px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .l1-title{font:400 18px/1.25 var(--f-display);color:var(--fg)}
 .l1-row.unread .l1-brand::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--primary);margin-right:7px;vertical-align:1px}
+`}));
+
+/* ---------- Today as a magazine "contents" page (O1) ---------- */
+function pageToday(){
+  try{playIntro()}catch{}
+  const t=ymd(),hr=new Date().getHours(),first=(myName()||'').split(' ')[0];
+  const todayTasks=S.tasks.filter(x=>!x.done&&x.due&&x.due<=t).sort((a,b)=>(a.due+(a.time||'')).localeCompare(b.due+(b.time||'')));
+  const late=todayTasks.filter(x=>x.due<t).length;
+  const mail=(S.settings.gmailRecent||[]).filter(m=>!m.bulk);const unread=mail.filter(m=>m.unread);
+  const mailList=unread.length?unread:mail;const brands=[...new Set(mailList.map(m=>guessBrand({name:m.fromName,email:m.email})||m.fromName))];
+  const waiting=S.campaigns.filter(c=>typeof dealBucket==='function'&&dealBucket(c)==='waiting');
+  const owedMail=(S.settings.gmailMoney||[]).filter(x=>x.kind==='owed'&&!waiting.some(c=>c.threadId===x.threadId));
+  const sums={};waiting.forEach(c=>{const v=Number(c.feeConfirmed||0);if(v){const k=c.currency||defCur();sums[k]=(sums[k]||0)+v}});owedMail.forEach(x=>{if(x.amount)sums[x.amount.cur]=(sums[x.amount.cur]||0)+x.amount.n});
+  const sumTxt=Object.entries(sums).map(([k,v])=>{try{return new Intl.NumberFormat(undefined,{style:'currency',currency:k,maximumFractionDigits:0}).format(v)}catch{return v+' '+k}}).join(' + ');
+  const whoWaits=[...waiting.map(c=>c.brand),...owedMail.map(x=>x.brand)].filter(Boolean);
+  const deliver=S.campaigns.filter(c=>typeof dealBucket==='function'&&dealBucket(c)==='deliver');
+  const listNames=(arr,n)=>arr.length?arr.slice(0,n).join(', ')+(arr.length>n?' and '+(arr.length-n)+' more':''):'';
+  const line=(label,hint,num,fn,cls)=>h('button',{class:'ct-row'+(cls?' '+cls:''),onclick:fn},h('span',{class:'ct-l'},h('span',{class:'ct-label'},label),hint?h('span',{class:'ct-hint'},hint):null),h('span',{class:'ct-num'},num));
+  const rows=[
+    line('Today',todayTasks.length?(todayTasks[0].title+(todayTasks.length>1?' first':'')):'Nothing planned. Tap to add.',String(todayTasks.length),()=>{if(!todayTasks.length){openTask({type:'Other',due:t,done:false});return}S.schedView='day';S.dayPick=t;go('schedule')},late?'has-late':''),
+    S.settings.gmailAt?line('Inbox',mailList.length?listNames(brands,2):'All caught up',String(unread.length||mail.length),()=>go('inbox'))
+      :line('Inbox','Connect Gmail to see your emails','—',()=>checkGmail()),
+    line('Money',whoWaits.length?(whoWaits.length===1?whoWaits[0]+' is waiting':listNames(whoWaits,2)+' are waiting'):'Nobody owes you right now',sumTxt||'$0',()=>go('payments')),
+    line('To deliver',deliver.length?listNames(deliver.map(c=>c.brand||'Untitled'),2):'Nothing owed',String(deliver.length),()=>go('campaigns'))
+  ];
+  const empty=!S.campaigns.length&&!S.tasks.length&&!S.settings.gmailAt;
+  return h('div',{class:'page ct-page'},
+    h('div',{class:'ct-head'},h('span',{class:'ct-date'},new Date().toLocaleDateString(undefined,{weekday:'long'})+' · '+new Date().toLocaleDateString(undefined,{month:'long',day:'numeric'})),
+      h('h1',{class:'ct-greet'},(hr<12?'Good morning':hr<18?'Good afternoon':'Good evening')+(first?', ':''),first?h('em',null,first+'.'):null)),
+    h('div',{class:'ct-issue'},h('span',{class:'ct-label-top'},'In today’s issue'),...rows,late?h('p',{class:'ct-note'},late+' late · tap Today'):null),
+    empty&&typeof welcomeCard==='function'?welcomeCard():null,
+    typeof guestBanner==='function'?guestBanner():null,
+    S.settings.demo&&typeof demoBanner==='function'?demoBanner():null);
+}
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.ct-page{display:flex;flex-direction:column;gap:22px;max-width:640px;margin:0 auto;width:100%}
+.ct-head{display:flex;flex-direction:column;gap:6px;padding-top:6px}
+.ct-date{font:500 10.5px var(--f-body);letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+.ct-greet{font:300 38px/1.05 var(--f-display);letter-spacing:-.01em;margin:0;color:var(--fg)}
+.ct-greet em{font-style:italic}
+.ct-issue{display:flex;flex-direction:column}
+.ct-label-top{font:600 10.5px var(--f-body);letter-spacing:.22em;text-transform:uppercase;color:var(--fg);padding-bottom:10px}
+.ct-row{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:16px 2px;border:0;border-top:1px solid var(--line);background:none;text-align:left;cursor:pointer;color:var(--fg);font:inherit;width:100%}
+.ct-row:last-of-type{border-bottom:1px solid var(--line)}
+.ct-l{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ct-label{font:400 16px var(--f-body)}
+.ct-hint{font:300 13px var(--f-body);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62vw}
+.ct-num{font:300 30px var(--f-display);font-variant-numeric:tabular-nums;color:var(--fg);flex:none}
+.ct-row.has-late .ct-num{color:#A5503A}
+.ct-row:active{background:var(--soft,#F1F1EF)}
+.ct-note{font:300 12.5px var(--f-body);color:#A5503A;margin:8px 2px 0}
+@media (max-width:760px){
+  :root[data-theme="ivory"] .side{position:relative}
+  :root[data-theme="ivory"] .side .brand{position:absolute;left:50%;transform:translateX(-50%);flex:none}
+  :root[data-theme="ivory"] .top-right{margin-left:auto}
+}
 `}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
