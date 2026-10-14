@@ -2644,15 +2644,17 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610141816';
+const BUILD_ID='202610141831';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
   try{if(typeof persistNow==='function')await persistNow()}catch{}
   try{const r=navigator.serviceWorker&&await navigator.serviceWorker.getRegistration();if(r)await r.update()}catch{}
   try{for(const k of await caches.keys())await caches.delete(k)}catch{}
-  location.reload();
+  try{sessionStorage.setItem('daylo-upd-tried',updWaiting||'manual')}catch{}
+  location.replace(location.pathname+'?v='+(updWaiting||Date.now()));
 }
+(function cleanV(){if(/[?&]v=\d+/.test(location.search)){try{history.replaceState(null,'',location.pathname+location.hash)}catch{}}})();
 function busyNow(){return !!(document.querySelector('#overlay > *')||document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))}
 let updWaiting=null;
 function showUpdateBar(){if(document.getElementById('upd-bar'))return;const b=h('div',{id:'upd-bar'},h('span',null,'A new version of Daylo is ready'),h('button',{onclick:refreshApp},'Update'));document.body.append(b)}
@@ -2660,7 +2662,8 @@ async function checkUpdate(manual){
   const v=await newVersion();
   if(!v){if(manual)toast('You have the latest version');return false}
   updWaiting=v;
-  if(manual||!busyNow()){refreshApp();return true}
+  let tried='';try{tried=sessionStorage.getItem('daylo-upd-tried')||''}catch{}
+  if(manual||(!busyNow()&&tried!==v)){refreshApp();return true}
   showUpdateBar();return true;
 }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkUpdate(false)});
@@ -2940,6 +2943,119 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .vo-again{border:0;background:none;color:var(--primary);display:inline-flex;gap:6px;align-items:center;font:500 14px var(--f-body);cursor:pointer;padding:6px}
 .vo-body{width:100%;font-size:15px;line-height:1.5}
 #voice-panel input[type=range]{width:100%;accent-color:var(--primary)}
+`}));
+
+/* ---------- email view with links and attachments ---------- */
+function linkify(text){
+  const out=[];const re=/(https?:\/\/[^\s<>"')\]]+|www\.[^\s<>"')\]]+)/g;let last=0,m;
+  while((m=re.exec(text))){if(m.index>last)out.push(text.slice(last,m.index));let u=m[0].replace(/[.,;:!?]+$/,'');const tail=m[0].slice(u.length);
+    out.push(h('a',{href:/^www\./.test(u)?'https://'+u:u,target:'_blank',rel:'noopener'},u.length>48?u.slice(0,46)+'…':u));if(tail)out.push(tail);last=m.index+m[0].length}
+  if(last<text.length)out.push(text.slice(last));return out;
+}
+function partsOf(p,acc){acc=acc||[];if(!p)return acc;if(p.filename&&p.body&&p.body.attachmentId)acc.push({name:p.filename,type:p.mimeType||'application/octet-stream',size:p.body.size||0,id:p.body.attachmentId,inline:/^inline/i.test(((p.headers||[]).find(x=>x.name.toLowerCase()==='content-disposition')||{}).value||'')});(p.parts||[]).forEach(x=>partsOf(x,acc));return acc}
+function htmlLinks(p){const out=[];(function walk(x){if(!x)return;if(x.mimeType==='text/html'&&x.body&&x.body.data){const html=b64u(x.body.data);const re=/<a\s[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;let m;while((m=re.exec(html))){const u=m[1];const label=htmlText(m[2]).trim().slice(0,60);if(/^https?:/.test(u)&&!/unsubscribe|list-manage|mailchimp|tracking|click\./i.test(u+label))out.push({u,label:label||u})}}(x.parts||[]).forEach(walk)})(p);const seen=new Set();return out.filter(x=>{if(seen.has(x.u))return false;seen.add(x.u);return true}).slice(0,8)}
+function kb(n){return n>1e6?(n/1e6).toFixed(1)+' MB':Math.max(1,Math.round(n/1e3))+' KB'}
+async function openAttachment(msgId,a,btn){
+  if(!tokOk()){toast('Tap Check Gmail first, then try again.');return}
+  if(btn){btn.classList.add('busy')}
+  try{const j=await gget('messages/'+msgId+'/attachments/'+a.id);const bin=atob((j.data||'').replace(/-/g,'+').replace(/_/g,'/'));const bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));
+    const blob=new Blob([bytes],{type:a.type});const url=URL.createObjectURL(blob);const file=new File([blob],a.name,{type:a.type});
+    const isImg=/^image\//.test(a.type),isPdf=/pdf/.test(a.type);
+    const view=isImg?h('img',{src:url,alt:a.name,style:'width:100%;border-radius:12px'}):isPdf?h('iframe',{src:url,title:a.name,style:'width:100%;height:65vh;border:0;border-radius:12px;background:#fff'}):h('p',{class:'muted'},'This file type can’t be shown here. Use Save or Open.');
+    const share=navigator.canShare&&navigator.canShare({files:[file]})?h('button',{class:'btn primary',onclick:()=>navigator.share({files:[file],title:a.name}).catch(()=>{})},icon('send'),'Save or share'):null;
+    openDrawer(a.name,h('div',{class:'form'},view),[share,h('a',{class:'btn'+(share?'':' primary'),href:url,target:'_blank',rel:'noopener',download:a.name},icon('ext'),'Open'),h('button',{class:'btn ghost',onclick:closeDrawer},'Close')].filter(Boolean));
+  }catch(e){toast(e.copy||'Couldn’t open this file.')}finally{if(btn)btn.classList.remove('busy')}
+}
+async function openMail(threadId){
+  if(!tokOk()){needGoogle({open:threadId});return}
+  const body=h('div',{class:'empty'},h('span',{class:'spin'}),'Opening email…');
+  openDrawer('Email',body,null,{noFocus:true});
+  let t;try{t=await gget('threads/'+threadId,{format:'full'})}catch(e){body.replaceWith(h('div',{class:'notice bad'},icon('alert'),h('p',null,e.copy||'Couldn’t open this email.')));return}
+  const ms=(t.messages||[]).map(m=>({m,p:parseMsg(m)})).filter(x=>x.p);
+  if(!ms.length){body.replaceWith(emptyState('Empty','This conversation has no messages.'));return}
+  const last=ms[ms.length-1];const them=[...ms].reverse().find(x=>!x.p.mine)||last;
+  const subj=them.p.subject.replace(/^(re|fwd?):\s*/i,'');
+  const view=h('div',{class:'mail-view'},h('h2',{class:'mail-subj'},subj),
+    ms.slice(-4).map((x,i,arr)=>{const atts=partsOf(x.m.payload).filter(a=>!a.inline||!/^image\//.test(a.type)||a.size>30000);const links=(x.p.text||'').match(/https?:\/\//)?[]:htmlLinks(x.m.payload);
+      return h('div',{class:'mail-msg'+(i===arr.length-1?' last':'')},
+        h('div',{class:'mail-from'},h('div',{class:'avatar'},initials(x.p.fromName||'?')),h('div',{class:'grow'},h('b',null,x.p.mine?'You':x.p.fromName),h('div',{class:'small muted'},fmtWhen(x.p.at)))),
+        h('div',{class:'mail-body'},linkify((x.p.text||x.p.snippet||'').slice(0,6000))),
+        atts.length?h('div',{class:'mail-atts'},atts.map(a=>{const b=h('button',{class:'mail-att',onclick:()=>openAttachment(x.m.id,a,b)},icon(/^image\//.test(a.type)?'camera':'pen'),h('span',null,h('b',null,a.name),h('small',null,kb(a.size))));return b})):null,
+        links.length?h('div',{class:'mail-links'},links.map(l=>h('a',{href:l.u,target:'_blank',rel:'noopener'},icon('ext'),l.label))):null)}));
+  const msgId=hdr(last.m,'Message-ID')||hdr(last.m,'Message-Id');const refs=[hdr(last.m,'References'),msgId].filter(Boolean).join(' ');
+  const to=them.p.mine?'':them.p.from.email;
+  closeDrawer();
+  openDrawer(them.p.fromName||'Email',view,[
+    h('button',{class:'btn primary',onclick:()=>{closeDrawer();openComposer({to,subject:'Re: '+subj});if(CP)CP.gmail={threadId,msgId,refs}}},icon('reply'),'Reply'),
+    h('a',{class:'btn',href:gmailUrl('#all/'+threadId),target:'_blank',rel:'noopener'},'Open in Gmail')]);
+}
+
+/* ---------- Check my English (spelling and grammar) ---------- */
+async function checkEnglish(ta,lang){
+  const text=ta.value;if(!text.trim()){toast('Write something first');return}
+  const panel=h('div',{class:'empty'},h('span',{class:'spin'}),'Checking your writing…');
+  openSheetCheck(panel);
+  let j;try{const r=await fetch('https://api.languagetool.org/v2/check',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({text,language:lang||'auto',preferredVariants:'en-US',level:'picky'})});j=await r.json()}
+  catch{panel.replaceWith(h('div',{class:'notice bad'},icon('alert'),h('p',null,'Couldn’t check right now. Check your connection.')));return}
+  const ms=(j.matches||[]).filter(m=>m.replacements&&m.replacements.length).slice(0,30);
+  if(!ms.length){panel.replaceWith(h('div',{class:'ck-ok'},icon('check'),h('b',null,'Looks good!'),h('p',{class:'muted small'},'No spelling or grammar mistakes found.')));speakIfOn('Looks good. No mistakes found.');return}
+  let fixed=0;
+  const apply=(m,rep,row)=>{const cur=ta.value;const off=m._off??m.offset;const len=m.length;ta.value=cur.slice(0,off)+rep+cur.slice(off+len);const d=rep.length-len;ms.forEach(o=>{if((o._off??o.offset)>off)o._off=(o._off??o.offset)+d});m._done=true;row.classList.add('done');fixed++;ta.dispatchEvent(new Event('input',{bubbles:true}));if(CP)CP.body=ta.value};
+  const rows=ms.map(m=>{const bad=text.substr(m.offset,m.length);const rep=m.replacements[0].value;
+    const row=h('div',{class:'ck-row'},h('div',{class:'grow'},h('div',null,h('s',null,bad),' → ',h('b',null,rep)),h('div',{class:'small muted'},m.message)),h('button',{class:'btn sm',onclick:()=>{if(!m._done)apply(m,rep,row)}},'Fix'));return row});
+  panel.replaceWith(h('div',{class:'form'},h('p',null,h('b',null,ms.length+' thing'+(ms.length===1?'':'s')+' to fix')),...rows,
+    h('div',{class:'row'},h('button',{class:'btn primary',onclick:()=>{ms.slice().sort((a,b)=>(b._off??b.offset)-(a._off??a.offset)).forEach((m,i)=>{if(!m._done)apply(m,m.replacements[0].value,rows[ms.indexOf(m)])});closeCheck();toast('Fixed '+fixed+' thing'+(fixed===1?'':'s'))}},icon('check'),'Fix all'),h('button',{class:'btn',onclick:closeCheck},'Done')),
+    h('p',{class:'small muted'},'Checked by LanguageTool. Your text isn’t saved there.')));
+  speakIfOn(ms.length+' thing'+(ms.length===1?'':'s')+' to fix.');
+}
+function speakIfOn(t){if(typeof speak==='function'&&S.settings.talkBack!==false&&VO.sheet)speak(t)}
+function openSheetCheck(content){closeCheck();const l=h('div',{class:'vo-layer ck-layer',onclick:e=>{if(e.target===l)closeCheck()}},h('div',{class:'vo-card ck-card'},h('div',{class:'vo-status'},'Check my English'),content));document.body.append(l);requestAnimationFrame(()=>l.classList.add('on'))}
+function closeCheck(){const l=document.querySelector('.ck-layer');if(l){l.classList.remove('on');setTimeout(()=>l.remove(),250)}}
+/* add the button to the email writer */
+const _drawComposer=drawComposer;
+drawComposer=function(){_drawComposer();try{if(CP&&CP.step==='edit'){const ta=document.getElementById('cp-body');if(ta&&!document.getElementById('ck-btn')){ta.setAttribute('spellcheck','true');ta.setAttribute('autocorrect','on');
+  const b=h('button',{class:'btn sm ck-btn',id:'ck-btn',type:'button',onclick:()=>checkEnglish(ta)},icon('spark'),'Check my English');ta.closest('.field').after(b)}}}catch(e){console.error(e)}};
+
+/* ---------- voice: open an email by name ("open the email from Kaleos") ---------- */
+const _handleSaid=handleSaid;
+handleSaid=function(raw){
+  const n=raw.toLowerCase().replace(/[.!?]+$/,'').replace(/^(hey |ok |okay |hello |hi )?(daylo,?\s*)?(can you |could you |please )*/,'').trim();
+  const m=n.match(/^(?:open|show|find|read|look for|search)(?: me)?(?: the| my)?(?: last| latest| new)?\s+(?:emails?|mails?|messages?|conversation)?\s*(?:from|with|of|about|by|for)?\s+(.+)$/);
+  if(m&&!/^(deals?|payments?|settings|today|schedule|calendar|contacts|inbox|my email|email)$/.test(m[1].trim())){
+    const q=m[1].split(/,| that | which | who | the company| we are| we're/)[0].replace(/\b(company|brand|collection's)\b/g,'').trim();
+    stopListening();return findAndOpen(q,raw);
+  }
+  return _handleSaid(raw);
+};
+async function findAndOpen(q,raw){
+  const local=findPerson(q);
+  if(local&&local.threadId){speak('Opening '+(local.brand||local.name)+'.');closeVoice();openMail(local.threadId);return}
+  if(!tokOk()){resultView('Connect Gmail','To search your email, connect Gmail first.',[],[h('button',{class:'btn primary',onclick:()=>{closeVoice();checkGmail()}},icon('mail'),'Connect Gmail')]);return speak('Connect Gmail first, then ask me again.')}
+  resultView('Searching…','Looking for “'+q+'” in your email…',[],[]);
+  try{const r=await gget('threads',{q,maxResults:5});const ts=r.threads||[];
+    if(!ts.length){resultView('Nothing found','I couldn’t find emails about “'+q+'”.',[],[h('button',{class:'btn',onclick:()=>listenView()},icon('mic'),'Try again')]);return speak('I couldn’t find emails about '+q+'.')}
+    if(ts.length===1){closeVoice();openMail(ts[0].id);return}
+    const metas=await Promise.all(ts.map(t=>gget('threads/'+t.id,{format:'metadata',metadataHeaders:['From','Subject']}).catch(()=>null)));
+    const items=metas.filter(Boolean).map(t=>{const m=t.messages[t.messages.length-1];const p=parseMsg(m);return h('button',{class:'vo-li vo-pick',onclick:()=>{closeVoice();openMail(t.id)}},h('b',null,p?p.fromName:'Email'),h('span',{class:'muted small'},p?p.subject.slice(0,48):''))});
+    resultView('Which one?',items.length+' emails about “'+q+'”',items,[]);speak('I found '+items.length+' emails. Which one?');
+  }catch(e){resultView('Couldn’t search',e.copy||'Try again in a moment.',[],[])}
+}
+EXAMPLES.splice(0,0,'Open the email from Kaleos');
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.mail-body a,.mail-links a{color:var(--primary);text-decoration:underline;word-break:break-all}
+.mail-atts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.mail-att{display:flex;gap:10px;align-items:center;border:0;background:var(--surface2,#F2F2F0);border-radius:12px;padding:10px 12px;cursor:pointer;color:var(--primary);text-align:left;max-width:100%}
+.mail-att b{display:block;font:500 13.5px var(--f-body);color:var(--fg);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mail-att small{color:var(--muted);font-size:12px}
+.mail-att.busy{opacity:.5}
+.mail-links{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.mail-links a{display:inline-flex;gap:6px;align-items:center;text-decoration:none;font-size:14px}
+.ck-btn{margin-top:-4px;align-self:flex-start}
+.ck-card{align-items:stretch}
+.ck-row{display:flex;gap:10px;align-items:center;background:var(--card,#fff);border-radius:14px;padding:12px 14px}
+.ck-row s{color:#B0593F}.ck-row.done{opacity:.45}.ck-row.done button{visibility:hidden}
+.ck-ok{display:flex;flex-direction:column;align-items:center;gap:6px;padding:20px;color:var(--primary)}
+.vo-pick{border:0;cursor:pointer;text-align:left;flex-direction:column;align-items:flex-start;gap:2px}
 `}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
