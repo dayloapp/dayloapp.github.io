@@ -2302,7 +2302,7 @@ function guessBrand(from){
   const dom=((from.email||'').split('@')[1]||'').toLowerCase();
   const free=/^(gmail|googlemail|yahoo|hotmail|outlook|icloud|me|aol|live|proton(mail)?|msn)\./.test(dom);
   const nm=(from.name||'').replace(/\s*\(.*?\)\s*/g,'').trim();
-  if(dom&&!free){const hit=nm.split(/\s+/).find(x=>x.length>2&&dom.replace(/[^a-z]/g,'').includes(x.toLowerCase().replace(/[^a-z]/g,'')));if(hit)return hit.replace(/^./,c=>c.toUpperCase());const p=dom.split('.');const core=p.length>2&&/^(co|com|mail|email|e|news|info|team|hello)$/.test(p[0])?p[1]:p[p.length-2]||p[0];return core.replace(/[-_]/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}
+  if(dom&&!free){const hits=nm.split(/\s+/).filter(x=>x.length>2&&dom.replace(/[^a-z]/g,'').includes(x.toLowerCase().replace(/[^a-z]/g,'')));if(hits.length)return hits.map(x=>x.replace(/^./,c=>c.toUpperCase())).join(' ');const p=dom.split('.');const core=p.length>2&&/^(co|com|mail|email|e|news|info|team|hello)$/.test(p[0])?p[1]:p[p.length-2]||p[0];return core.replace(/[-_]/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}
   return (from.name||'').replace(/\s*\(.*?\)\s*/g,'').trim()||from.email||'';
 }
 
@@ -2362,13 +2362,13 @@ async function checkGmail(){
     GMS.wait=()=>{msg.textContent='Almost there…'};
     const run=async(list,fn,n)=>{let k=0;const w=async()=>{while(k<list.length&&!stop){const x=list[k++];try{await fn(x)}catch(e){if(e.expired||e.stop)stop=e}}};await Promise.all(Array.from({length:n},w))};
     await run(ids,async id=>{const p=parseMsg(await gget('messages/'+id,{format:'metadata',metadataHeaders:['From','Subject','Date','List-Unsubscribe','Precedence']}));if(p){p.text=p.snippet;msgs.push(p)}},5);
-    const hot=msgs.filter(m=>!m.bulk&&!m.mine&&(KW.deal.test(m.subject+' '+m.snippet)||XCOLLAB.test(m.subject)||KW.money.test(m.subject+' '+m.snippet)||KW.date.test(m.subject+' '+m.snippet))).slice(0,15);
+    const hot=msgs.filter(m=>!m.bulk&&!m.mine&&(KW.deal.test(m.subject+' '+m.snippet)||XCOLLAB.test(m.subject)||KW.money.test(m.subject+' '+m.snippet)||KW.date.test(m.subject+' '+m.snippet))).slice(0,25);
     if(hot.length){msg.textContent='Looking closer at '+hot.length+' emails…';
       await run(hot,async m=>{const f=await gget('messages/'+m.id,{format:'full'});const t=bodyOf(f.payload);if(t)m.text=t},4)}
     GMS.wait=null;
     if(stop&&!msgs.length)throw stop;
     let addr='';try{addr=(await gget('profile')).emailAddress||''}catch{}
-    const patch={gmailAt:Date.now(),gmailRecent:recentList(msgs),gmailRead:msgs.length};
+    const patch={gmailAt:Date.now(),gmailRecent:recentList(msgs),gmailRead:msgs.length,gmailMoney:moneyFrom(msgs)};
     if(addr&&!S.settings.gmailAddress)patch.gmailAddress=addr.toLowerCase();
     await saveSettings(patch);
     const found=organize(msgs);
@@ -2555,6 +2555,81 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .mail-from{display:flex;gap:10px;align-items:center;margin-bottom:10px}
 .mail-body{white-space:pre-wrap;font-size:15px;line-height:1.55;word-break:break-word}
 .gm-list-click{cursor:pointer}
+`}));
+
+/* ---------- money from email: paid, waiting, gifted, offers (last 30 days) ---------- */
+const MK={
+  gift:/\b(gift(ed|ing)?|pr (package|box|list)|product seeding|seeding|complimentary|in exchange for|no budget|unpaid|non-?paid|barter|send(ing)? you (some|a few|our)|shipping address|your address|ship (it|them) to you)\b/i,
+  paid:/\b(payment (has been )?(made|sent|processed|issued|completed|received)|you('ve| have)? (got|received) (money|a payment)|we('ve| have) (just )?paid|has been paid|paid (out|in full|you)|invoice (has been |was )?paid|remittance|payout (sent|processed)|transfer (sent|completed)|deposit(ed)?)\b/i,
+  owed:/\b(invoice|payment details|bank details|w-?9|paypal (email|address)|net ?(15|30|45|60)|amount due|billing)\b/i,
+  deliver:/\b(deliverables?|post(ing)? (date|by|on)|go(es)? live|due (on|by)|content (by|due)|draft|tag us|reels?|tiktok|stories|ugc|send (us )?(the )?(content|link|draft|photos))\b/i
+};
+function moneyFrom(msgs){
+  const since=Date.now()-30*864e5;const me=(hintEmail()||'').toLowerCase();
+  const th=new Map();msgs.forEach(m=>{if(!th.has(m.threadId))th.set(m.threadId,[]);th.get(m.threadId).push(m)});
+  const out=[];
+  th.forEach((ms,tid)=>{
+    ms.sort((a,b)=>a.at-b.at);const last=ms[ms.length-1];if(last.at<since)return;
+    const them=[...ms].reverse().find(m=>!m.mine&&(m.from.email||'').toLowerCase()!==me);if(!them)return;
+    const text=ms.map(m=>m.subject+'\n'+(m.text||m.snippet||'')).join('\n');
+    const bulk=ms.every(m=>m.bulk);const amt=findAmount(text);
+    const isDeal=KW.deal.test(text)||XCOLLAB.test(them.subject);
+    let kind=null;
+    if(MK.paid.test(text)&&(amt||!bulk))kind='paid';
+    else if(bulk)return;
+    else if(isDeal&&MK.gift.test(text))kind='gift';
+    else if(MK.owed.test(text)&&(isDeal||amt))kind='owed';
+    else if(isDeal)kind=amt?'offer':'talk';
+    if(!kind)return;
+    const brand=(kind==='paid'&&bulk?payer(them.text||them.snippet||''):'')||guessBrand(them.from)||them.fromName;
+    out.push({threadId:tid,brand,kind,amount:amt,deliver:kind==='gift'||kind==='talk'?MK.deliver.test(text):false,subject:them.subject.replace(/^(re|fwd?):\s*/i,'').slice(0,90),from:them.fromName,email:them.from.email,at:last.at});
+  });
+  // one line per brand, strongest status wins
+  const rank={paid:0,owed:1,gift:2,offer:3,talk:4};const by=new Map();
+  out.sort((a,b)=>rank[a.kind]-rank[b.kind]||b.at-a.at).forEach(x=>{const k=x.brand.toLowerCase();if(!by.has(k))by.set(k,x)});
+  return [...by.values()].sort((a,b)=>rank[a.kind]-rank[b.kind]||b.at-a.at).slice(0,40);
+}
+const MKIND={paid:['Paid','ok'],owed:['Waiting for payment','amber'],gift:['Gifted','plain'],offer:['Offer','plain'],talk:['In talks','plain']};
+function sumAmt(list){const o={};list.forEach(x=>{if(x.amount){o[x.amount.cur]=(o[x.amount.cur]||0)+x.amount.n}});const e=Object.entries(o);return e.length?e.map(([c,n])=>m0({n,cur:c})).join(' + '):''}
+async function trackMoney(x){
+  const ex=S.campaigns.find(c=>c.threadId===x.threadId);
+  const rec={...(ex||{}),brand:x.brand,campaign:(ex&&ex.campaign)||x.subject,contactEmail:(ex&&ex.contactEmail)||(validEmail(x.email||'')&&!isNoReply(x.email)?x.email.toLowerCase():''),threadId:x.threadId,fromGmail:true,
+    dealType:x.kind==='gift'?'Gifted':(x.amount||x.kind==='paid'||x.kind==='owed')?'Paid':(ex&&ex.dealType)||'',
+    currency:x.amount?x.amount.cur:(ex&&ex.currency)||defCur(),
+    feeConfirmed:(x.kind==='paid'||x.kind==='owed')&&x.amount?x.amount.n:(ex?ex.feeConfirmed:null),
+    feeProposed:x.kind==='offer'&&x.amount?x.amount.n:(ex?ex.feeProposed:null),
+    payStatus:x.kind==='paid'?'Paid':x.kind==='owed'?'Invoiced':(ex&&ex.payStatus)||'Not invoiced',
+    stage:x.kind==='paid'?'Closed':x.kind==='owed'?'Delivered':x.kind==='gift'?'Booked':(ex&&ex.stage)||'Lead'};
+  const cid=await save('campaigns',rec);
+  if(x.kind==='gift'&&x.deliver&&!S.tasks.some(t=>t.gmailThread===x.threadId&&t.type==='Send content'&&!t.done))await save('tasks',{title:'Deliver content for '+x.brand,type:'Send content',due:addDays(ymd(),3),done:false,campaignId:cid,gmailThread:x.threadId});
+  if(x.kind==='owed'&&!S.tasks.some(t=>t.gmailThread===x.threadId&&t.type==='Payment'&&!t.done))await save('tasks',{title:'Follow up payment · '+x.brand+(x.amount?' · '+m0(x.amount):''),type:'Payment',due:addDays(ymd(),2),done:false,campaignId:cid,gmailThread:x.threadId});
+  toast(x.brand+' added');renderMain();
+}
+function moneyPanel(){
+  const st=S.settings;const list=st.gmailMoney||[];
+  const wrap=(...k)=>h('section',{class:'panel money-mail'},h('div',{class:'panel-head'},h('div',null,h('h2',null,'From your email'),h('p',{class:'small muted',style:'margin-top:2px'},st.gmailAt?'Last 30 days · checked '+agoText(st.gmailAt):'Last 30 days')),st.gmailAt?h('button',{class:'btn sm',onclick:checkGmail},icon('refresh'),'Check'):null),...k);
+  if(!st.gmailAt)return wrap(h('div',{class:'panel-body form'},h('p',{class:'muted'},'Connect Gmail and Daylo shows who paid you, who still owes you, and what was gifted.'),h('div',{class:'row'},h('button',{class:'btn primary',onclick:checkGmail},icon('mail'),'Connect Gmail'))));
+  if(!st.gmailMoney)return wrap(h('div',{class:'panel-body form'},h('p',{class:'muted'},'Tap Check to read your money from the last 30 days of email.')));
+  if(!list.length)return wrap(emptyState('Nothing about money yet','No payments, gifts or offers in the last 30 days of email.'));
+  const paid=list.filter(x=>x.kind==='paid'),owed=list.filter(x=>x.kind==='owed'),gift=list.filter(x=>x.kind==='gift');
+  const chip=(l,v,s)=>h('div',{class:'mm-stat'},h('span',{class:'small muted'},l),h('b',null,v),h('span',{class:'small muted'},s));
+  const tracked=x=>S.campaigns.some(c=>c.threadId===x.threadId);
+  return wrap(
+    h('div',{class:'mm-stats'},chip('Paid',sumAmt(paid)||String(paid.length),paid.length+' brand'+(paid.length===1?'':'s')),chip('Waiting',sumAmt(owed)||String(owed.length),owed.length+' to follow up'),chip('Gifted',String(gift.length),gift.filter(x=>x.deliver).length+' to deliver')),
+    h('div',{class:'list'},list.map(x=>h('div',{class:'item mm-row'},
+      h('div',{class:'avatar'},initials(x.brand)),
+      h('div',{class:'grow',role:'button',tabindex:'0',style:'cursor:pointer',onclick:()=>openMail(x.threadId)},
+        h('div',{class:'t'},x.brand,h('span',{class:'pill '+MKIND[x.kind][1],style:'margin-left:8px'},MKIND[x.kind][0])),
+        h('div',{class:'sub'},[x.amount?m0(x.amount):null,x.kind==='gift'&&x.deliver?'You owe content':null,x.subject].filter(Boolean).join(' · '))),
+      tracked(x)?h('span',{class:'small muted'},'Tracked'):h('button',{class:'btn sm',onclick:()=>trackMoney(x)},'Track')))));
+}
+const _pagePayments=pagePayments;
+pagePayments=function(){const el=_pagePayments();try{const hd=el.firstChild;hd.after(moneyPanel())}catch(e){console.error(e)}return el};
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.mm-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:4px 18px 14px}
+.mm-stat{display:flex;flex-direction:column;gap:2px;background:var(--green,#F0EDE7);border-radius:14px;padding:12px 14px}
+.mm-stat b{font:400 22px var(--f-display,serif);color:var(--fg)}
+.mm-row{align-items:center}
 `}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
