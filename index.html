@@ -2257,6 +2257,7 @@ const KW={
   film:/\b(shoot|film(ing)?|call ?time|casting|fitting)\b/i,
   ask:/\?|\b(let me know|could you|can you|would you|please (confirm|send|share|reply|advise)|are you available|interested|get back to (me|us)|look forward to hearing)\b/i
 };
+const XCOLLAB=/(^|\s)[x×](\s|$)/i;   // "Brand x @creator" style subjects
 const MONTHS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
 const WDAYS=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
 function findAmount(t){
@@ -2310,7 +2311,7 @@ function organize(msgs){
     const pay=payer(them.text)||brand;
     if(bulk){ if(KW.paidIn.test(text)&&amt)add('money',{paid:true,brand:pay}); return }
     const n0=out.length;
-    if(KW.deal.test(text))add('deal');
+    if(KW.deal.test(text)||XCOLLAB.test(them.subject))add('deal');
     else if(KW.paidIn.test(text)&&amt)add('money',{paid:true,brand:pay});
     else if(KW.money.test(text))add('money',{paid:false,invoice:/\b(send|need|request)\w*\b.{0,40}\binvoice|\binvoice (for|request)/i.test(text)});
     else if(date&&KW.date.test(them.subject+' '+them.text))add('date',{film:KW.film.test(them.subject+' '+them.text)});
@@ -2325,7 +2326,7 @@ function recentList(msgs){
   return msgs.filter(m=>!m.mine&&(m.from.email||'').toLowerCase()!==me).sort((a,b)=>b.at-a.at)
     .filter(m=>{if(seen.has(m.threadId))return false;seen.add(m.threadId);return true})
     .slice(0,30).map(m=>({threadId:m.threadId,fromName:m.fromName,email:m.from.email,subject:m.subject,snippet:m.snippet,at:m.at,unread:m.unread,bulk:m.bulk,
-      tag:KW.deal.test(m.subject+' '+m.text)&&!m.bulk?'Deal':(KW.paidIn.test(m.text)||KW.money.test(m.subject))?'Money':KW.date.test(m.subject)?'Date':''}));
+      tag:(KW.deal.test(m.subject+' '+m.text)||XCOLLAB.test(m.subject))&&!m.bulk?'Deal':(KW.paidIn.test(m.text)||KW.money.test(m.subject))?'Money':KW.date.test(m.subject)?'Date':''}));
 }
 
 /* what the button does */
