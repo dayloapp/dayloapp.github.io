@@ -2644,7 +2644,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610141927';
+const BUILD_ID='202610141941';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -3393,6 +3393,81 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 pageSchedule=(function(prev){return function(){const el=prev();try{const hd=el.querySelector('.page-head');if(hd)hd.remove();const chip=el.querySelector('.schip');if(chip&&chip.parentElement)chip.parentElement.remove()}catch(e){}return el}})(pageSchedule);
 /* money without .00 when it's a whole amount */
 function money(n,c){if(n==null||n===''||isNaN(Number(n)))return '';const v=Number(n);try{return new Intl.NumberFormat(undefined,{style:'currency',currency:c||defCur(),minimumFractionDigits:v%1?2:0,maximumFractionDigits:2}).format(v)}catch{return v.toLocaleString()+' '+(c||'')}}
+
+/* Schedule = Month map (S2): whole month, marks by kind, busy days tinted, the chosen day's list below. Palette only. */
+function kindOf(x){const t=(x&&x.type)||'';
+  if(/Film|Edit|Plan/.test(t))return 'make';
+  if(/Post|Send content|Submit/.test(t))return 'post';
+  if(/Reply|Follow/.test(t))return 'reply';
+  if(/Payment/.test(t))return 'money';
+  return 'other'}
+const KIND_LABEL={make:'Create',post:'Post',reply:'Reply',money:'Money'};
+function monthItems(d){return S.tasks.filter(x=>x.due===d)}
+function dayView(){
+  const t=ymd();const sel=S.dayPick||t;const sp=parseYmd(sel);
+  const first=new Date(sp.getFullYear(),sp.getMonth(),1);const firstY=ymd(first);
+  const gs=weekStartOf(firstY);const cells=[];for(let i=0;i<42;i++)cells.push(addDays(gs,i));
+  while(cells.length>35&&parseYmd(cells[35]).getMonth()!==first.getMonth())cells.splice(35);
+  const shift=n=>{const m=new Date(sp.getFullYear(),sp.getMonth()+n,1);const keep=Math.min(sp.getDate(),new Date(m.getFullYear(),m.getMonth()+1,0).getDate());m.setDate(keep);S.dayPick=ymd(m);renderMain()};
+  const grid=h('div',{class:'mm-grid',role:'grid','aria-label':'Month'},
+    cells.slice(0,7).map(d=>h('span',{class:'mm-w'},DOW[parseYmd(d).getDay()].slice(0,1))),
+    cells.map(d=>{const x=parseYmd(d);const out=x.getMonth()!==first.getMonth();const its=monthItems(d);const open=its.filter(i=>!i.done);
+      const marks=its.slice(0,4).map(i=>h('i',{class:'mk mk-'+kindOf(i)+(i.done?' dn':'')}));
+      return h('button',{class:'mm-d'+(out?' out':'')+(d===t?' today':'')+(d===sel?' sel':'')+(open.length>=3?' busy':''),'aria-label':x.toDateString()+(its.length?', '+its.length+' things':''),onclick:()=>{S.dayPick=d;renderMain()}},
+        h('b',null,x.getDate()),h('span',{class:'mm-mk'},marks))}));
+  const legend=h('div',{class:'mm-leg'},Object.keys(KIND_LABEL).map(k=>h('span',null,h('i',{class:'mk mk-'+k}),KIND_LABEL[k])));
+  const items=dayItems(sel);const sorted=[...items].sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'));
+  const open=sorted.filter(i=>!(i.k==='task'&&i.x.done)).length;
+  const row=it=>{const x=it.x;const isR=it.k==='routine';const done=isR?routineDone(x,sel):!!x.done;const late=!isR&&!done&&x.due&&x.due<t;
+    const camp=!isR&&x.campaignId?S.campaigns.find(c=>c.id===x.campaignId):null;
+    const sub=[isR?'Routine':(KIND_LABEL[kindOf(x)]||x.type||''),camp&&camp.brand&&!(x.title||'').includes(camp.brand)?camp.brand:null].filter(Boolean).join(' · ');
+    return h('div',{class:'mm-row'+(done?' done':''),role:'button',tabindex:'0',onclick:()=>isR?openRoutine(x):openTask(x)},
+      (late||it.time)?h('span',{class:'mm-tm'+(late?' late':'')},late?'Late':fmtTime(it.time)):null,
+      h('i',{class:'mm-bar k-'+(isR?'other':kindOf(x))}),
+      h('div',{class:'mm-tx'},h('b',null,x.title||'Untitled'),sub?h('span',null,sub):null),
+      h('button',{class:'sc-check'+(done?' on':''),role:'checkbox','aria-checked':String(done),'aria-label':done?'Mark not done':'Mark done',onclick:e=>{e.stopPropagation();isR?toggleRoutine(x,sel):attempt(()=>save('tasks',{...x,done:!x.done,doneAt:!x.done?Date.now():null}))}},done?icon('check'):null))};
+  return h('section',{class:'sc-view mm',id:'week'},
+    h('div',{class:'mm-head'},h('h2',{class:'mm-title'},first.toLocaleDateString(undefined,{month:'long'}),' ',h('em',null,first.getFullYear())),
+      h('div',{class:'sc-nav'},h('button',{'aria-label':'Previous month',onclick:()=>shift(-1)},'‹'),h('button',{'aria-label':'Next month',onclick:()=>shift(1)},'›'))),
+    legend,grid,
+    h('div',{class:'mm-dayhead'},h('span',null,(sel===t?'Today · ':'')+sp.toLocaleDateString(undefined,{weekday:'long',day:'numeric'})),h('span',null,open?open+(open===1?' thing':' things'):'Free')),
+    h('div',{class:'mm-list'},sorted.length?sorted.map(row):h('p',{class:'sc-empty'},'Nothing planned.')),
+    h('div',{class:'mm-actions'},h('button',{class:'sc-add',onclick:()=>openTask({type:'Other',due:sel,done:false})},'+ Add'),
+      sel!==t?h('button',{class:'sc-add',onclick:()=>{S.dayPick=null;renderMain()}},'Back to today'):null));
+}
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.mm{gap:14px}
+.mm-head{display:flex;justify-content:space-between;align-items:center}
+.mm-title{font:500 36px/1 var(--f-display);letter-spacing:-.02em;margin:0;color:#141312}.mm-title em{font-style:normal;font-weight:300;color:var(--muted)}
+.mm-leg{display:flex;gap:14px;flex-wrap:wrap}.mm-leg span{display:flex;align-items:center;gap:6px;font:500 12px var(--f-body);color:var(--muted)}
+.mk{width:6px;height:6px;border-radius:50%;display:inline-block;flex:none}
+.mk-make{background:#141312}.mk-post{background:#6E5A4C}.mk-reply{background:none;box-shadow:inset 0 0 0 1.4px #6E5A4C}.mk-money{background:#C4B3A4;border-radius:1.5px}.mk-other{background:#C9C7C3}
+.mk.dn{opacity:.35}
+.mm-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+.mm-w{font:500 11px var(--f-body);letter-spacing:.12em;color:var(--muted);padding-bottom:2px}
+.mm-d{height:48px;border:0;border-radius:14px;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;color:#141312;font:inherit;padding:0}
+.mm-d b{font:400 16px var(--f-body);font-variant-numeric:tabular-nums}
+.mm-mk{display:flex;gap:2px;height:6px}
+.mm-d.out{color:#C9C7C3}.mm-d.out .mk{opacity:.4}
+.mm-d.busy{background:#EFEBE7}
+.mm-d.sel{box-shadow:inset 0 0 0 1.5px #141312}
+.mm-d.today{background:#141312;color:#fff}.mm-d.today .mk-make,.mm-d.today .mk-post,.mm-d.today .mk-other{background:#fff}.mm-d.today .mk-reply{box-shadow:inset 0 0 0 1.4px #fff}.mm-d.today .mk-money{background:#C4B3A4}
+.mm-dayhead{display:flex;justify-content:space-between;font:500 11px var(--f-body);letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-top:8px}
+.mm-list{display:flex;flex-direction:column;gap:8px}
+.mm-row{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px 14px;cursor:pointer}
+.mm-tm{font:600 13px var(--f-body);width:58px;flex:none;font-variant-numeric:tabular-nums;color:#141312}.mm-tm.late{color:#6E5A4C}
+.mm-bar{width:4px;align-self:stretch;border-radius:2px;flex:none}
+.k-make{background:#141312}.k-post{background:#6E5A4C}.k-reply{background:none;box-shadow:inset 0 0 0 1.4px #6E5A4C}.k-money{background:#C4B3A4}.k-other{background:#DDD9D3}
+.mm-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.mm-tx b{font:600 15px var(--f-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#141312}
+.mm-tx span{font:400 13px var(--f-body);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mm-row.done .mm-tx b{color:var(--muted);text-decoration:line-through}
+.mm-actions{display:flex;gap:16px}
+`}));
+
+/* rename Day tab to Month */
+document.addEventListener('click',()=>{},true);
+(function(){const fix=()=>document.querySelectorAll('[aria-label="Schedule view"] [role=tab]').forEach(b=>{if(b.textContent==='Day')b.textContent='Month'});new MutationObserver(fix).observe(document.documentElement,{childList:true,subtree:true})})();
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
