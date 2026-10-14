@@ -2371,6 +2371,7 @@ async function checkGmail(){
     const patch={gmailAt:Date.now(),gmailRecent:recentList(msgs),gmailRead:msgs.length,gmailMoney:moneyFrom(msgs)};
     if(addr&&!S.settings.gmailAddress)patch.gmailAddress=addr.toLowerCase();
     await saveSettings(patch);
+    try{await refreshTracked(patch.gmailMoney||[])}catch(e){console.error(e)}
     const found=organize(msgs);
     GMS.busy=false;
     showFound(found,msgs.length);
@@ -2417,6 +2418,8 @@ function showFound(found,read){
 }
 async function addSuggestion(s){
   const t=ymd();const note='From Gmail: '+s.snippet;
+  const mx=(S.settings.gmailMoney||[]).find(x=>x.threadId===s.threadId);
+  if(mx&&(s.kind==='deal'||s.kind==='money')){const cid=await trackMoney(mx,true);if(s.date){const c0=S.campaigns.find(c=>c.id===cid);if(c0&&!c0.dueDate)await save('campaigns',{...c0,dueDate:s.date})}if(s.kind==='deal'&&(mx.kind==='offer'||mx.kind==='talk'))await save('tasks',{title:'Reply to '+(s.brand||s.fromName),type:'Reply',due:t,done:false,campaignId:cid,gmailThread:s.threadId,notes:note});return}
   if(s.kind==='deal'){
     const cid=await save('campaigns',{brand:s.brand,campaign:s.subject.slice(0,80),contactEmail:validEmail(s.email||'')&&!isNoReply(s.email)?s.email.toLowerCase():'',stage:'Lead',
       currency:s.amount?s.amount.cur:defCur(),feeProposed:s.amount?s.amount.n:null,feeConfirmed:null,payStatus:'Not invoiced',dueDate:s.date||'',postingDate:'',deliverables:'',paymentTerms:'',usageRights:'',notes:note,threadId:s.threadId,fromGmail:true});
@@ -2591,7 +2594,7 @@ function moneyFrom(msgs){
 }
 const MKIND={paid:['Paid','ok'],owed:['Waiting for payment','amber'],gift:['Gifted','plain'],offer:['Offer','plain'],talk:['In talks','plain']};
 function sumAmt(list){const o={};list.forEach(x=>{if(x.amount){o[x.amount.cur]=(o[x.amount.cur]||0)+x.amount.n}});const e=Object.entries(o);return e.length?e.map(([c,n])=>m0({n,cur:c})).join(' + '):''}
-async function trackMoney(x){
+async function trackMoney(x,quiet){
   const ex=S.campaigns.find(c=>c.threadId===x.threadId);
   const rec={...(ex||{}),brand:x.brand,campaign:(ex&&ex.campaign)||x.subject,contactEmail:(ex&&ex.contactEmail)||(validEmail(x.email||'')&&!isNoReply(x.email)?x.email.toLowerCase():''),threadId:x.threadId,fromGmail:true,
     dealType:x.kind==='gift'?'Gifted':(x.amount||x.kind==='paid'||x.kind==='owed')?'Paid':(ex&&ex.dealType)||'',
@@ -2603,7 +2606,15 @@ async function trackMoney(x){
   const cid=await save('campaigns',rec);
   if(x.kind==='gift'&&x.deliver&&!S.tasks.some(t=>t.gmailThread===x.threadId&&t.type==='Send content'&&!t.done))await save('tasks',{title:'Deliver content for '+x.brand,type:'Send content',due:addDays(ymd(),3),done:false,campaignId:cid,gmailThread:x.threadId});
   if(x.kind==='owed'&&!S.tasks.some(t=>t.gmailThread===x.threadId&&t.type==='Payment'&&!t.done))await save('tasks',{title:'Follow up payment · '+x.brand+(x.amount?' · '+m0(x.amount):''),type:'Payment',due:addDays(ymd(),2),done:false,campaignId:cid,gmailThread:x.threadId});
-  toast(x.brand+' added');renderMain();
+  if(!quiet){toast(x.brand+' added');renderMain()}
+  return cid;
+}
+/* keep tracked deals up to date from new emails (only moves forward, e.g. to Paid) */
+async function refreshTracked(list){
+  const rank={talk:0,offer:1,gift:1,owed:2,paid:3};const st=c=>c.payStatus==='Paid'?3:c.payStatus==='Invoiced'?2:c.dealType==='Gifted'||c.feeProposed?1:0;let n=0;
+  for(const x of list){const c=S.campaigns.find(c=>c.fromGmail&&(c.threadId===x.threadId||(c.brand||'').toLowerCase()===x.brand.toLowerCase()));if(!c)continue;
+    if(rank[x.kind]>st(c)&&(x.kind==='paid'||x.kind==='owed')){await trackMoney({...x,threadId:c.threadId||x.threadId},true);n++}}
+  if(n)toast('Updated '+n+' deal'+(n===1?'':'s')+' from your email');
 }
 function moneyPanel(){
   const st=S.settings;const list=st.gmailMoney||[];
@@ -2633,7 +2644,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610141047';
+const BUILD_ID='202610141052';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -2676,6 +2687,44 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 #upd-bar{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 10px);z-index:600;display:flex;gap:14px;align-items:center;background:var(--fg,#3d342d);color:#fff;border-radius:99px;padding:8px 8px 8px 18px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.18);white-space:nowrap}
 #upd-bar button{border:0;border-radius:99px;background:var(--primary);color:#fff;font:500 13px var(--f-body);padding:8px 14px;cursor:pointer}
 `}));
+
+/* ---------- Campaigns, simple: grouped by what you need to do ---------- */
+function dealBucket(c){
+  if(['Declined'].includes(c.stage))return 'closed';
+  if(c.payStatus==='Paid')return 'paid';
+  if(c.payStatus==='Invoiced')return 'waiting';
+  if(c.dealType==='Gifted'){return ['Delivered','Closed'].includes(c.stage)?'closed':'deliver'}
+  if(['Booked','Creating','Needs review'].includes(c.stage))return 'deliver';
+  if(c.stage==='Delivered')return 'waiting';
+  if(c.stage==='Closed')return 'closed';
+  return 'talks';
+}
+const BUCKETS=[['deliver','To create & deliver','Content you owe'],['waiting','Waiting for payment','Delivered, not paid yet'],['talks','In talks','Offers and new conversations'],['paid','Paid','Money received'],['closed','Done','Closed or declined']];
+function dealLine(c){
+  const b=dealBucket(c);const fee=c.feeConfirmed!=null&&c.feeConfirmed!==''?money(c.feeConfirmed,c.currency):c.feeProposed?money(c.feeProposed,c.currency)+' offered':'';
+  const pill={paid:['Paid','ok'],waiting:['Waiting','amber'],deliver:[c.dealType==='Gifted'?'Gifted · deliver':'To deliver','plain'],talks:[c.dealType==='Gifted'?'Gift offer':'In talks','plain'],closed:[c.stage||'Done','plain']}[b];
+  const nextDate=c.dueDate||c.postingDate||'';
+  return h('div',{class:'item deal-line',role:'button',tabindex:'0',onclick:()=>openCampaign(c)},
+    h('div',{class:'avatar'},initials(c.brand||'?')),
+    h('div',{class:'grow'},h('div',{class:'t'},c.brand||'Untitled',h('span',{class:'pill '+pill[1],style:'margin-left:8px'},pill[0])),
+      h('div',{class:'sub'},[fee,nextDate?('Due '+fmtDay(nextDate)):null,c.campaign].filter(Boolean).join(' · '))),
+    c.threadId&&typeof openMail==='function'?h('button',{class:'btn sm ghost',onclick:e=>{e.stopPropagation();openMail(c.threadId)}},icon('mail')):null);
+}
+pageCampaigns=function(){
+  const all=[...S.campaigns].sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  const sumBy=k=>{const o={};all.filter(c=>dealBucket(c)===k).forEach(c=>{const v=c.feeConfirmed!=null&&c.feeConfirmed!==''?Number(c.feeConfirmed):0;if(v){const cur=c.currency||defCur();o[cur]=(o[cur]||0)+v}});return Object.entries(o).map(([cur,v])=>money(v,cur)).join(' + ')};
+  const cnt=k=>all.filter(c=>dealBucket(c)===k).length;
+  const groups=BUCKETS.map(([k,title,sub])=>{const items=all.filter(c=>dealBucket(c)===k);if(!items.length)return null;
+    return h('section',{class:'panel'},h('div',{class:'panel-head'},h('div',null,h('h2',null,title),h('p',{class:'small muted',style:'margin-top:2px'},sub)),h('span',{class:'small muted'},items.length)),h('div',{class:'list'},(k==='closed'?items.slice(0,8):items).map(dealLine)))});
+  return h('div',{class:'page'},
+    head(V().many||'Deals','',h('button',{class:'btn primary',onclick:()=>openCampaign(null)},icon('plus'),'New deal')),
+    all.length?h('div',{class:'mm-stats',style:'padding:0 0 4px'},
+      h('div',{class:'mm-stat'},h('span',{class:'small muted'},'Paid'),h('b',null,sumBy('paid')||String(cnt('paid'))),h('span',{class:'small muted'},cnt('paid')+' deals')),
+      h('div',{class:'mm-stat'},h('span',{class:'small muted'},'Waiting'),h('b',null,sumBy('waiting')||String(cnt('waiting'))),h('span',{class:'small muted'},cnt('waiting')+' to follow up')),
+      h('div',{class:'mm-stat'},h('span',{class:'small muted'},'To deliver'),h('b',null,String(cnt('deliver'))),h('span',{class:'small muted'},'content you owe'))):null,
+    ...groups.filter(Boolean),
+    all.length?null:h('section',{class:'panel'},emptyState('No deals yet','Connect Gmail in Settings and Daylo finds your deals, or tap New deal.')));
+};
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
