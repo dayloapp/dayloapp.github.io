@@ -2644,7 +2644,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610141920';
+const BUILD_ID='202610141927';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -2981,8 +2981,8 @@ async function openMail(threadId){
     h('span',{class:'mv-label'},brandL+' · '+tagOf(allText)),
     h('h2',{class:'mail-subj'},subj),
     h('p',{class:'mv-meta'},(them.p.fromName||'')+' · '+fmtWhen(last.p.at)+(ms.length>1?' · '+ms.length+' messages':'')),
-    ms.slice(-4).map((x,i,arr)=>{const atts=partsOf(x.m.payload).filter(a=>!a.inline||!/^image\//.test(a.type)||a.size>30000);const links=(x.p.text||'').match(/https?:\/\//)?[]:htmlLinks(x.m.payload);
-      return h('div',{class:'mail-msg'+(i===arr.length-1?' last':'')},
+    ms.slice(-4).reverse().map((x,i,arr)=>{const atts=partsOf(x.m.payload).filter(a=>!a.inline||!/^image\//.test(a.type)||a.size>30000);const links=(x.p.text||'').match(/https?:\/\//)?[]:htmlLinks(x.m.payload);
+      return h('div',{class:'mail-msg'+(i===0?' last':'')},
         arr.length>1?h('p',{class:'mv-who'},(x.p.mine?'You':x.p.fromName)+' · '+fmtWhen(x.p.at)):null,
         h('div',{class:'mail-body'},linkify((x.p.text||x.p.snippet||'').slice(0,6000))),
         atts.length?h('div',{class:'mail-atts'},atts.map(a=>{const b=h('button',{class:'mail-att',onclick:()=>openAttachment(x.m.id,a,b)},icon(/^image\//.test(a.type)?'camera':'pen'),h('span',null,h('b',null,a.name),h('small',null,kb(a.size))));return b})):null,
@@ -3282,7 +3282,7 @@ function pageToday(){
   const whoWaits=[...waiting.map(c=>c.brand),...owedMail.map(x=>x.brand)].filter(Boolean);
   const deliver=S.campaigns.filter(c=>typeof dealBucket==='function'&&dealBucket(c)==='deliver');
   const listNames=(arr,n)=>arr.length?arr.slice(0,n).join(', ')+(arr.length>n?' and '+(arr.length-n)+' more':''):'';
-  const line=(label,hint,num,fn,cls)=>h('button',{class:'ct-row'+(cls?' '+cls:''),onclick:fn},h('span',{class:'ct-l'},h('span',{class:'ct-label'},label),hint?h('span',{class:'ct-hint'},hint):null),h('span',{class:'ct-num'},num));
+  const line=(label,hint,num,fn,cls)=>h('button',{class:'ct-row'+(cls?' '+cls:''),onclick:fn,title:hint||''},h('span',{class:'ct-label'},label),h('span',{class:'ct-num'},num));
   const rows=[
     line('Today',todayTasks.length?(todayTasks[0].title+(todayTasks.length>1?' first':'')):'Nothing planned. Tap to add.',String(todayTasks.length),()=>{if(!todayTasks.length){openTask({type:'Other',due:t,done:false});return}S.schedView='day';S.dayPick=t;go('schedule')},late?'has-late':''),
     S.settings.gmailAt?line('Inbox',mailList.length?listNames(brands,2):'All caught up',String(unread.length||mail.length),()=>go('inbox'))
@@ -3293,8 +3293,8 @@ function pageToday(){
   const empty=!S.campaigns.length&&!S.tasks.length&&!S.settings.gmailAt;
   return h('div',{class:'page ct-page'},
     h('div',{class:'ct-head'},h('span',{class:'ct-date'},new Date().toLocaleDateString(undefined,{weekday:'long'})+' · '+new Date().toLocaleDateString(undefined,{month:'long',day:'numeric'})),
-      h('h1',{class:'ct-greet'},(hr<12?'Good morning':hr<18?'Good afternoon':'Good evening')+(first?', ':''),first?h('em',null,first+'.'):null)),
-    h('div',{class:'ct-issue'},h('span',{class:'ct-label-top'},'In today’s issue'),...rows,late?h('p',{class:'ct-note'},late+' late · tap Today'):null),
+      h('h1',{class:'ct-greet'},h('span',{class:'ct-hi'},(hr<12?'Good morning':hr<18?'Good afternoon':'Good evening')+(first?',':'.')),first?h('span',{class:'ct-name'},first+'.'):null)),
+    h('div',{class:'ct-issue'},h('span',{class:'ct-label-top'},'In today’s issue'),...rows,late?h('p',{class:'ct-note'},late+' late'):null),
     empty&&typeof welcomeCard==='function'?welcomeCard():null,
     typeof guestBanner==='function'?guestBanner():null,
     S.settings.demo&&typeof demoBanner==='function'?demoBanner():null);
@@ -3322,6 +3322,77 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
   :root[data-theme="ivory"] .top-right{margin-left:auto}
 }
 `}));
+
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.ct-greet{display:flex;flex-direction:column;gap:0}
+.ct-hi{font:300 italic 22px/1.2 var(--f-display);color:var(--muted)}
+.ct-name{font:500 60px/0.98 var(--f-display);letter-spacing:-.025em;color:#141312}
+.ct-label{font:400 22px var(--f-display)!important;color:#141312}
+.ct-row{padding:18px 2px!important}
+.ct-num{font:400 30px var(--f-display)!important}
+`}));
+/* Schedule: calm day view, no "Any time", no repeated names */
+function dayCard(it,d){const x=it.x;const isR=it.k==='routine';const done=isR?routineDone(x,d):!!x.done;const t=ymd();
+  const late=!isR&&!done&&x.due&&x.due<t;
+  const right=late?'Late':(x.time?fmtTime(x.time):'');
+  return h('div',{class:'sc-row'+(done?' done':''),role:'button',tabindex:'0',onclick:()=>isR?openRoutine(x):openTask(x)},
+    h('button',{class:'sc-check'+(done?' on':''),role:'checkbox','aria-checked':String(done),'aria-label':done?'Mark not done':'Mark done',onclick:e=>{e.stopPropagation();isR?toggleRoutine(x,d):attempt(()=>save('tasks',{...x,done:!x.done,doneAt:!x.done?Date.now():null}))}},done?icon('check'):null),
+    h('span',{class:'sc-title'},x.title||'Untitled'),
+    right?h('span',{class:'sc-right'+(late?' late':'')},right):null)}
+function dayView(){
+  const t=ymd();const sel=S.dayPick||t;const ws=weekStartOf(sel);const days=[0,1,2,3,4,5,6].map(i=>addDays(ws,i));
+  const items=dayItems(sel);const pd=parseYmd(sel);
+  const strip=h('div',{class:'sc-strip',role:'tablist','aria-label':'Pick a day'},days.map(d=>{const n=dayItems(d).filter(i=>!(i.k==='task'&&i.x.done)).length;const x=parseYmd(d);
+    return h('button',{role:'tab','aria-selected':String(d===sel),class:'sc-day'+(d===sel?' on':'')+(d===t?' today':''),onclick:()=>{S.dayPick=d;renderMain()}},h('span',{class:'sc-dw'},DOW[x.getDay()].slice(0,1)),h('b',null,x.getDate()),h('i',{class:n?'has':''}))}));
+  const sorted=[...items].sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'));
+  return h('section',{class:'sc-view',id:'week'},
+    h('div',{class:'sc-head'},h('div',null,h('span',{class:'ct-date'},pd.toLocaleDateString(undefined,{month:'long',year:'numeric'})),h('h2',{class:'sc-title-big'},sel===t?'Today':pd.toLocaleDateString(undefined,{weekday:'long',day:'numeric'}))),
+      h('div',{class:'sc-nav'},h('button',{'aria-label':'Previous week',onclick:()=>{S.dayPick=addDays(sel,-7);renderMain()}},'‹'),h('button',{'aria-label':'Next week',onclick:()=>{S.dayPick=addDays(sel,7);renderMain()}},'›'))),
+    strip,
+    h('div',{class:'sc-list'},sorted.length?sorted.map(it=>dayCard(it,sel)):h('p',{class:'sc-empty'},'Nothing planned.'),
+      h('button',{class:'sc-add',onclick:()=>openTask({type:'Other',due:sel,done:false})},'+ Add'),
+      sel!==t?h('button',{class:'sc-add',onclick:()=>{S.dayPick=null;renderMain()}},'Back to today'):null));
+}
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.sc-view{display:flex;flex-direction:column;gap:16px;max-width:640px;margin:0 auto;width:100%}
+.sc-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+.sc-title-big{font:500 40px/1 var(--f-display);letter-spacing:-.02em;margin:4px 0 0;color:#141312}
+.sc-nav{display:flex;gap:4px}.sc-nav button{width:36px;height:36px;border-radius:50%;border:0;background:var(--soft,#F1F1EF);font:400 18px var(--f-body);cursor:pointer;color:var(--fg)}
+.sc-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.sc-day{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0 6px;border:0;border-radius:14px;background:none;cursor:pointer;color:var(--fg);font:inherit}
+.sc-dw{font:500 10px var(--f-body);letter-spacing:.14em;color:var(--muted)}
+.sc-day b{font:400 20px var(--f-display)}
+.sc-day i{width:4px;height:4px;border-radius:50%;background:transparent}.sc-day i.has{background:var(--primary)}
+.sc-day.on{background:#141312;color:#fff}.sc-day.on .sc-dw{color:rgba(255,255,255,.65)}.sc-day.on i.has{background:#fff}
+.sc-day.today:not(.on) b{text-decoration:underline;text-underline-offset:4px}
+.sc-list{display:flex;flex-direction:column}
+.sc-row{display:flex;align-items:center;gap:14px;padding:15px 2px;border-top:1px solid var(--line);cursor:pointer}
+.sc-row:last-of-type{border-bottom:1px solid var(--line)}
+.sc-check{width:22px;height:22px;border-radius:50%;border:1.6px solid #C9C7C3;background:none;display:grid;place-items:center;flex:none;cursor:pointer;color:#fff;padding:0}
+.sc-check.on{background:var(--primary);border-color:var(--primary)}.sc-check svg{width:13px;height:13px}
+.sc-title{flex:1;min-width:0;font:400 16px var(--f-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc-row.done .sc-title{color:var(--muted);text-decoration:line-through}
+.sc-right{font:400 13px var(--f-body);color:var(--muted);flex:none}.sc-right.late{color:#A5503A}
+.sc-empty{font:300 italic 18px var(--f-display);color:var(--muted);margin:10px 2px}
+.sc-add{align-self:flex-start;border:0;background:none;color:var(--muted);font:500 14px var(--f-body);padding:14px 2px;cursor:pointer}
+`}));
+/* Deals: just the brand, and the amount or date on the right */
+function dealLine(c){
+  const fee=c.feeConfirmed!=null&&c.feeConfirmed!==''?money(c.feeConfirmed,c.currency):c.feeProposed?money(c.feeProposed,c.currency):'';
+  const right=fee||(c.dueDate?fmtDay(c.dueDate):'');
+  return h('div',{class:'item dl-row',role:'button',tabindex:'0',onclick:()=>openCampaign(c)},
+    h('span',{class:'dl-brand'},c.brand||c.campaign||'Untitled'),
+    right?h('span',{class:'dl-right'},right):null);
+}
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.dl-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:15px 2px!important;cursor:pointer}
+.dl-brand{font:400 19px var(--f-display);color:#141312;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dl-right{font:400 14px var(--f-body);color:var(--muted);flex:none;font-variant-numeric:tabular-nums}
+`}));
+/* fewer words on Schedule: no page title row, no counter chips */
+pageSchedule=(function(prev){return function(){const el=prev();try{const hd=el.querySelector('.page-head');if(hd)hd.remove();const chip=el.querySelector('.schip');if(chip&&chip.parentElement)chip.parentElement.remove()}catch(e){}return el}})(pageSchedule);
+/* money without .00 when it's a whole amount */
+function money(n,c){if(n==null||n===''||isNaN(Number(n)))return '';const v=Number(n);try{return new Intl.NumberFormat(undefined,{style:'currency',currency:c||defCur(),minimumFractionDigits:v%1?2:0,maximumFractionDigits:2}).format(v)}catch{return v.toLocaleString()+' '+(c||'')}}
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
