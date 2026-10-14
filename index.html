@@ -3058,7 +3058,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- Studio look: bright, editorial, hairlines, less text ---------- */
-(function studioFonts(){try{const l=document.createElement('link');l.rel='stylesheet';l.href='https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500&display=swap';document.head.append(l)}catch{}})();
+(function studioFonts(){try{const l=document.createElement('link');l.rel='stylesheet';l.href='https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;1,8..60,300;1,8..60,400&display=swap';document.head.append(l)}catch{}})();
 try{const t=THEMES.find(x=>x[0]==='ivory');if(t){t[1]='Studio';t[2]='Bright white, soft cocoa';t[3]='#FAFAF9';t[4]='#EFEBE7';t[5]='#6E5A4C'}}catch{}
 /* mic in the middle of the bottom bar; + moves to the top */
 const _renderTabbarS=renderTabbar;
@@ -3066,11 +3066,11 @@ renderTabbar=function(){_renderTabbarS();try{const a=document.querySelector('#ta
 renderSide=(function(prev){return function(){prev();try{const tr=document.querySelector('.top-right');if(!tr)return;const m=tr.querySelector('.mic-btn');if(m)m.remove();if(!tr.querySelector('.plus-btn')){tr.insertBefore(h('button',{class:'bell plus-btn','aria-label':'Add something',title:'Add',onclick:quickAdd},icon('plus')),tr.querySelector('.bell'))}}catch{}}})(renderSide);
 document.head.append(Object.assign(document.createElement('style'),{textContent:`
 :root[data-theme="ivory"]{--bg:#FAFAF9!important;--side:#FAFAF9!important;--card:#FFFFFF!important;--panel:#FFFFFF!important;--fg:#222120!important;--muted:#91908C!important;--line:#E8E8E5!important;--line2:#DCDCD8!important;--primary:#6E5A4C!important;--on-primary:#fff!important;--green:#F1F1EF!important;--green2:#EFEBE7!important;--glass:#F1F1EF!important;--glass-line:#E8E8E5!important;--gold:#6E5A4C!important;--surface2:#F1F1EF;
-  --f-display:"Lora",Georgia,"Times New Roman",serif!important;--f-body:"Inter",ui-sans-serif,system-ui,-apple-system,sans-serif!important;--f-head:"Inter",ui-sans-serif,system-ui,sans-serif!important;--shadow:0 10px 40px rgba(0,0,0,.08)!important}
+  --f-display:"Source Serif 4",Georgia,"Times New Roman",serif!important;--f-body:"Inter",ui-sans-serif,system-ui,-apple-system,sans-serif!important;--f-head:"Inter",ui-sans-serif,system-ui,sans-serif!important;--shadow:0 10px 40px rgba(0,0,0,.08)!important}
 :root[data-theme="ivory"] body{background:#FAFAF9!important;color:#222120;font-family:var(--f-body)}
 :root[data-theme="ivory"] .blobs{display:none!important}
 /* page titles: serif, no subtitles */
-:root[data-theme="ivory"] .page-head h1{font:500 32px/1.1 var(--f-display)!important;letter-spacing:-.01em}
+:root[data-theme="ivory"] .page-head h1{font:300 34px/1.08 var(--f-display)!important;letter-spacing:-.01em}
 :root[data-theme="ivory"] .page-head p{display:none!important}
 /* panels: no boxes, hairlines */
 :root[data-theme="ivory"] .panel{background:transparent!important;border:0!important;border-top:1px solid var(--line)!important;border-radius:0!important;box-shadow:none!important}
@@ -3083,7 +3083,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 :root[data-theme="ivory"] .list .item{padding-left:2px!important;padding-right:2px!important;border-color:var(--line)!important;background:transparent!important}
 :root[data-theme="ivory"] .avatar{background:#F1F1EF!important;color:#6E5A4C!important}
 :root[data-theme="ivory"] .mm-stat,:root[data-theme="ivory"] .stat{background:transparent!important;border:0!important;box-shadow:none!important;padding:8px 2px!important}
-:root[data-theme="ivory"] .mm-stat b,:root[data-theme="ivory"] .stat .v{font:400 26px var(--f-display)!important}
+:root[data-theme="ivory"] .mm-stat b,:root[data-theme="ivory"] .stat .v{font:300 28px var(--f-display)!important}
 :root[data-theme="ivory"] .pill{background:#F1F1EF!important;color:#6b6762!important;border:0!important}
 :root[data-theme="ivory"] .pill.ok{background:#EEF2EC!important;color:#4F6B4A!important}
 :root[data-theme="ivory"] .pill.amber{background:#F6EFE6!important;color:#8A6436!important}
@@ -3099,7 +3099,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 :root[data-theme="ivory"] .b-hero.has-cover{background:transparent!important}
 :root[data-theme="ivory"] .b-hero:after{display:none!important}
 :root[data-theme="ivory"] .b-eb{opacity:1!important;color:#91908C!important;letter-spacing:0!important;text-transform:none!important;font:500 13px var(--f-body)!important}
-:root[data-theme="ivory"] .b-greet,:root[data-theme="ivory"] .b-greet .greet-b{font:500 34px/1.1 var(--f-display)!important;color:#222120!important;letter-spacing:-.01em}
+:root[data-theme="ivory"] .b-greet,:root[data-theme="ivory"] .b-greet .greet-b{font:300 36px/1.08 var(--f-display)!important;color:#222120!important;letter-spacing:-.01em}
 :root[data-theme="ivory"] .b-greet em{font-style:normal!important;color:#222120!important}
 :root[data-theme="ivory"] .b-av{background:#F1F1EF!important;color:#6E5A4C!important;border:0!important}
 :root[data-theme="ivory"] .b-next{background:#EFEBE7!important;color:#222120!important;border-radius:14px!important;padding:14px 16px!important}
@@ -3197,6 +3197,15 @@ trackMoney=async function(x,quiet){
 function calMark(size){const d=new Date().getDate();const s=document.createElement('span');s.className='ico cal-mark';s.innerHTML='<svg width="'+(size||24)+'" height="'+(size||24)+'" viewBox="0 0 48 48" aria-hidden="true"><path d="M9 8h14a16 16 0 0 1 0 32H9z" fill="currentColor"/><text x="21.5" y="30.5" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-weight="600" font-size="15" fill="var(--bg,#FAFAF9)">'+d+'</text></svg>';return s}
 renderTabbar=(function(prev){return function(){prev();try{const t=[...document.querySelectorAll('#tabbar .tab')].find(b=>/^Schedule/.test(b.getAttribute('aria-label')||''));if(t){const old=t.querySelector('svg.ico,.ico');if(old)old.replaceWith(calMark(27))}}catch(e){console.error(e)}}})(renderTabbar);
 document.head.append(Object.assign(document.createElement('style'),{textContent:`.cal-mark{display:inline-grid;place-items:center;width:27px!important;height:27px!important}.cal-mark svg{width:27px;height:27px}`}));
+
+/* type: Source Serif 4 for titles and reading, Inter for the interface */
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+:root[data-theme="ivory"] .mail-body{font-family:"Source Serif 4",Georgia,serif!important;font-size:16.5px!important;line-height:1.65!important}
+:root[data-theme="ivory"] .mail-subj{font-weight:300!important;font-size:28px!important;line-height:1.15!important}
+:root[data-theme="ivory"] .vo-say,:root[data-theme="ivory"] .vo-live{font-family:"Source Serif 4",Georgia,serif!important;font-weight:300!important}
+:root[data-theme="ivory"] .drawer-head h2{font-weight:400!important}
+:root[data-theme="ivory"] .b-eb,:root[data-theme="ivory"] .panel-head h2{letter-spacing:.14em!important;text-transform:uppercase!important;font-size:11px!important;font-weight:500!important}
+`}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
