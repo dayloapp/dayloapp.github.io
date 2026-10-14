@@ -1119,7 +1119,7 @@ function renderSide(){
   const gs={compose:['ok','Emails open in your Gmail'],ok:['ok','Gmail connected'],checking:['','Checking Gmail…'],unknown:['warn','Gmail asks on first use'],reauth:['bad','Reconnect Gmail'],missing:['bad','Gmail not connected'],none:['bad','Gmail unavailable here']}[S.gmailStatus]||['','Gmail'];
   const ds={device:['ok','Saved on this device'],db:['ok','Saving to your account'],memory:['warn','Not saving: open in Claude'],checking:['','Loading your data…']}[S.dbStatus]||['',''];
   $('#side').replaceChildren(
-    h('div',{class:'brand'},h('div',{class:'mark'},S.settings.avatarId?h('img',{src:blobUrl(S.settings.avatarId),alt:''}):initials(myName()||'Daylo')),h('div',{class:'grow'},h('b',null,'Daylo'),h('span',null,myName()||'Brand deals, in one place'))),
+    h('div',{class:'brand'},h('div',{class:'mark'},S.settings.avatarId?h('img',{src:blobUrl(S.settings.avatarId),alt:''}):initials(myName()||'Daylo')),h('div',{class:'grow'},h('b',null,logoMark(30)),h('span',null,myName()||'Brand deals, in one place'))),
     h('nav',{class:'nav','aria-label':'Sections'},NAV.map(([k,l])=>h('button',{'aria-current':page===k?'page':null,onclick:()=>{S.campStages=null;S.invFilter=null;go(k)}},icon(k),k==='campaigns'?V().title:l,c[k]?h('span',{class:'count'},c[k]):null))),
     h('div',{class:'side-foot'},installEvt?h('button',{class:'btn sm primary',onclick:installApp},icon('plus'),'Install app'):null,
       needAllow?h('button',{class:'btn sm primary',onclick:allowGmail},icon('mail'),'Allow Gmail'):h('div',{class:'status-line'},h('span',{class:'dot '+gs[0]}),gs[1]),
@@ -2104,7 +2104,7 @@ function importData(){const inp=h('input',{type:'file',accept:'application/json,
       persist();schedule();toast('Imported '+n+' items')}
     catch{toast('That file isn\'t a Daylo backup.')}});
   document.body.append(inp);inp.click()}
-function welcomeCard(){const st=S.settings;return h('section',{class:'panel'},h('div',{class:'panel-body form'},h('h2',null,st.gmailAt?'Nothing planned yet':'Fill your Daylo from Gmail'),h('p',{class:'muted'},st.gmailAt?'Gmail had nothing new to add. Tap + to plan something, or look around with an example.':'Daylo reads your recent emails and suggests brand deals, payments, dates and replies. You choose what to keep.'),h('div',{class:'row'},h('button',{class:'btn primary',onclick:checkGmail},icon(st.gmailAt?'refresh':'mail'),st.gmailAt?'Check Gmail again':'Connect Gmail'),h('button',{class:'btn',onclick:()=>{loadDemo();toast('Example data loaded')}},'See an example')),st.gmailAt?null:h('p',{class:'small muted'},'Read only · stays on this device')))}
+function welcomeCard(){const st=S.settings;return h('section',{class:'panel'},h('div',{class:'panel-body form'},h('h2',null,st.gmailAt?'Nothing planned yet':'Fill from Gmail'),h('p',{class:'muted'},st.gmailAt?'Gmail had nothing new to add. Tap + to plan something, or look around with an example.':'Your deals, payments and dates, found for you. You choose what to keep.'),h('div',{class:'row'},h('button',{class:'btn primary',onclick:checkGmail},icon(st.gmailAt?'refresh':'mail'),st.gmailAt?'Check Gmail again':'Connect Gmail'),h('button',{class:'btn',onclick:()=>{loadDemo();toast('Example data loaded')}},'See an example')),st.gmailAt?null:h('p',{class:'small muted'},'Read only · stays on this device')))}
 function pageSettings(){
   const st=S.settings;
   const form=h('form',{class:'form',onsubmit:async e=>{e.preventDefault();const f=e.target.elements;await attempt(()=>saveSettings({role:f.role.value,name:f.name.value.trim(),gmailAddress:f.gmailAddress.value.trim().toLowerCase(),rates:f.rates.value.trim(),signature:f.signature.value,currency:f.currency.value,dealQuery:f.dealQuery.value.trim()}),'Settings saved')}},
@@ -2143,7 +2143,7 @@ function shareDaylo(){
   openDrawer('Share Daylo',h('div',{class:'form',style:'align-items:center;text-align:center'},
     h('p',{class:'muted'},'Scan with your phone camera.'),
     h('img',{src:TRY_QR,alt:'QR code to try Daylo',class:'share-qr'}),
-    h('div',{class:'share-name'},h('b',null,'Daylo'),h('span',null,'AI Assistant')),
+    h('div',{class:'share-name'},h('b',null,logoMark(30)),h('span',null,'AI Assistant')),
     h('div',{class:'row',style:'justify-content:center'},
       navigator.share?h('button',{class:'btn primary',onclick:()=>navigator.share({title:'Daylo',text:'Daylo AI Assistant: your days, gently in order.',url:TRY_URL}).catch(()=>{})},icon('send'),'Send the link'):null,
       h('button',{class:'btn',onclick:async()=>{try{await navigator.clipboard.writeText(TRY_URL);toast('Link copied')}catch{toast(TRY_URL)}}},'Copy link'))),
@@ -2172,7 +2172,7 @@ async function notifyNow(){if(notifBusy||!CUR||notifState()!=='granted'||!S.sett
     const sent=(S.settings.notified&&S.settings.notified.day===t)?{...S.settings.notified,keys:[...S.settings.notified.keys]}:{day:t,keys:[]};
     let last=null;try{last=await IDB.get('lastSummary:'+CUR)}catch{}
     if(last!==t&&now.getHours()>=7){const late=S.tasks.filter(x=>!x.done&&x.due&&x.due<t).length,due=S.tasks.filter(x=>!x.done&&x.due===t).length,rt=routinesOn(t).filter(r=>!routineDone(r,t)).length;
-      if(late||due||rt){await showNote('Your day in Daylo',[due&&due+' due today',late&&late+' late',rt&&rt+(rt===1?' routine':' routines')].filter(Boolean).join(' · '),'daylo-summary','./#schedule')}
+      if(late||due||rt){await showNote('Your day',[due&&due+' due today',late&&late+' late',rt&&rt+(rt===1?' routine':' routines')].filter(Boolean).join(' · '),'daylo-summary','./#schedule')}
       try{await IDB.set('lastSummary:'+CUR,t)}catch{}}
     for(const x of S.tasks.filter(x=>!x.done&&x.due===t&&x.time)){const[hh,mm]=x.time.split(':').map(Number);const at=new Date();at.setHours(hh,mm,0,0);const diff=(at-now)/60000;const k='soon:'+x.id+':'+x.time;
       if(diff<=15&&diff>-5&&!sent.keys.includes(k)){await showNote(diff>0?'In '+Math.max(1,Math.round(diff))+' min: '+x.title:'Now: '+x.title,(x.type||'Task')+(x.campaignId?' · '+campaignName(x.campaignId):''),k,'./#schedule');sent.keys.push(k);changed=true}}
@@ -2393,27 +2393,27 @@ function sugSub(s){
 }
 function showFound(found,read){
   if(!found.length){
-    openDrawer('Your Gmail',h('div',{class:'form'},h('p',null,h('b',null,'Nothing new to add.')),h('p',{class:'muted'},'Daylo read '+read+' recent emails and didn’t find new brand deals, payments, dates or questions waiting for you.'),h('p',{class:'small muted'},'You can see your latest emails on the Email page.')),
+    openDrawer('Your Gmail',h('div',{class:'form'},h('p',null,h('b',null,'Nothing new to add.')),h('p',{class:'muted'},'Read '+read+' emails. No new brand deals, payments, dates or questions waiting for you.'),h('p',{class:'small muted'},'You can see your latest emails on the Email page.')),
       [h('button',{class:'btn primary',onclick:()=>{closeDrawer();renderMain()}},'OK'),h('button',{class:'btn',onclick:()=>{closeDrawer();go('inbox')}},'See emails')]);
     renderMain();return;
   }
   const pick=new Set(found.map(s=>s.key));
   const btn=h('button',{class:'btn primary',type:'button'});
-  const upd=()=>{btn.textContent=pick.size?('Add '+pick.size+' to Daylo'):'Add to Daylo';btn.disabled=!pick.size};upd();
+  const upd=()=>{btn.textContent=pick.size?('Add '+pick.size):'Add';btn.disabled=!pick.size};upd();
   const groups=['deal','money','date','reply'].map(k=>{const items=found.filter(s=>s.kind===k);if(!items.length)return null;
     return h('div',{class:'gm-group'},h('h3',{class:'gm-h'},icon(KIND[k][1]),KIND[k][0],h('span',{class:'muted'},items.length)),
       h('div',{class:'list'},items.map(s=>{const cb=h('input',{type:'checkbox',checked:true,'aria-label':'Add '+sugTitle(s),onchange:()=>{cb.checked?pick.add(s.key):pick.delete(s.key);upd()}});
         return h('label',{class:'item gm-item'},cb,h('div',{class:'grow'},h('div',{class:'t'},sugTitle(s)),h('div',{class:'sub'},sugSub(s))),
-          h('a',{class:'btn sm ghost',href:gmailUrl('#all/'+s.threadId),target:'_blank',rel:'noopener',onclick:e=>e.stopPropagation()},'Open'))})))});
+          h('button',{class:'btn sm ghost',type:'button',onclick:e=>{e.preventDefault();e.stopPropagation();openMail(s.threadId)}},'Open'))})))});
   btn.onclick=async()=>{btn.disabled=true;let n=0;
     for(const s of found){if(pick.has(s.key)){await addSuggestion(s);n++}}
     const skipped=found.filter(s=>!pick.has(s.key)).map(s=>s.key);
     await saveSettings({gmailSkip:[...(S.settings.gmailSkip||[]),...skipped].slice(-400)});
-    closeDrawer();renderMain();toast('Added '+n+' to your Daylo');};
+    closeDrawer();renderMain();toast('Added '+n+'');};
   openDrawer('Found in your Gmail',h('div',{class:'form'},
-    h('p',{class:'muted'},'Daylo read '+read+' recent emails and found '+found.length+' things. Untick anything you don’t want, then add.'),
+    h('p',{class:'muted'},'Read '+read+' emails, found '+found.length+' things. Untick anything you don’t want, then add.'),
     ...groups.filter(Boolean),
-    h('p',{class:'small muted'},'Read only: Daylo can’t send, delete or change your emails. What it reads stays on this device.')),
+    h('p',{class:'small muted'},'Read only · stays on this device')),
     [btn,h('button',{class:'btn',type:'button',onclick:()=>{closeDrawer();renderMain()}},'Not now')]);
 }
 async function addSuggestion(s){
@@ -2527,7 +2527,7 @@ function askConfirm(){
   if(!CP||reviewWarnings().some(x=>x[0]==='bad'))return;
   const no=h('button',{class:'btn',type:'button',onclick:closeConfirm},'No, go back');
   const yes=h('button',{class:'btn primary',id:'cf-send',type:'button',onclick:sendViaGmail},icon('send'),'Yes, send');
-  const viaGmail=h('a',{class:'linkish small',href:composeUrl(),target:'_blank',rel:'noopener',onclick:()=>{closeConfirm();CP.step='handed';drawComposer()}},'or open it in Gmail');
+  const viaGmail=null;
   $('#overlay').append(h('div',{class:'confirm-layer',id:'confirm-layer',role:'alertdialog','aria-modal':'true','aria-labelledby':'cf-t'},h('div',{class:'confirm-card'},
     h('h2',{id:'cf-t'},'Send this email?'),
     h('p',null,tokOk()&&GSEND?'It goes out from your Gmail right now.':'Google asks you once to allow sending, then it goes out from your Gmail.'),
@@ -2644,7 +2644,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610141838';
+const BUILD_ID='202610141843';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -2657,7 +2657,7 @@ async function refreshApp(){
 (function cleanV(){if(/[?&]v=\d+/.test(location.search)){try{history.replaceState(null,'',location.pathname+location.hash)}catch{}}})();
 function busyNow(){return !!(document.querySelector('#overlay > *')||document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))}
 let updWaiting=null;
-function showUpdateBar(){if(document.getElementById('upd-bar'))return;const b=h('div',{id:'upd-bar'},h('span',null,'A new version of Daylo is ready'),h('button',{onclick:refreshApp},'Update'));document.body.append(b)}
+function showUpdateBar(){if(document.getElementById('upd-bar'))return;const b=h('div',{id:'upd-bar'},h('span',null,'A new version is ready'),h('button',{onclick:refreshApp},'Update'));document.body.append(b)}
 async function checkUpdate(manual){
   const v=await newVersion();
   if(!v){if(manual)toast('You have the latest version');return false}
@@ -2678,7 +2678,7 @@ setInterval(()=>{if(document.visibilityState==='visible')checkUpdate(false)},20*
   window.addEventListener('touchend',()=>{if(y0==null)return;y0=null;if(d>=72){ind.classList.add('spin');ind.style.transform='translate(-50%,36px)';refreshApp()}else{ind.style.opacity=0;ind.style.transform=''}d=0});
 })();
 function appPanel(){return h('section',{class:'panel',id:'app-version'},h('div',{class:'panel-head'},h('h2',null,'App updates')),h('div',{class:'panel-body form'},
-  h('p',{class:'small muted'},'Version '+buildLabel(BUILD_ID)+'. Daylo updates itself when you open it. You can also pull down from the top of any page, or tap the button.'),
+  h('p',{class:'small muted'},'Version '+buildLabel(BUILD_ID)+'. Updates arrive on their own. Pull down to refresh.'),
   h('div',{class:'row'},h('button',{class:'btn',onclick:()=>{toast('Checking…');checkUpdate(true)}},icon('refresh'),'Check for updates'))))}
 const _pageSettings=pageSettings;
 pageSettings=function(){const el=_pageSettings();try{el.append(appPanel())}catch(e){}return el};
@@ -2897,7 +2897,7 @@ function draftReply(p,msg){
 
 /* mic in the top bar (phone) and ?talk=1 opens it */
 const _renderSideV=renderSide;
-renderSide=function(){_renderSideV();try{const tr=document.querySelector('.top-right');if(tr&&!tr.querySelector('.mic-btn')){const b=h('button',{class:'bell mic-btn','aria-label':'Talk to Daylo',title:'Talk to Daylo',onclick:openVoice},icon('mic'));tr.insertBefore(b,tr.querySelector('.bell'))}}catch{}};
+renderSide=function(){_renderSideV();try{const tr=document.querySelector('.top-right');if(tr&&!tr.querySelector('.mic-btn')){const b=h('button',{class:'bell mic-btn','aria-label':'Talk',title:'Talk',onclick:openVoice},icon('mic'));tr.insertBefore(b,tr.querySelector('.bell'))}}catch{}};
 /* voice settings */
 function voicePanel(){
   const st=S.settings;const sel=h('select',{class:'input',id:'set-voice'});
@@ -2905,12 +2905,12 @@ function voicePanel(){
     const list=all.filter(v=>showAll||/^(en|es)/i.test(v.lang)).sort((a,b)=>a.lang.localeCompare(b.lang)||a.name.localeCompare(b.name));
     sel.replaceChildren(...(list.length?list.map(v=>{const o=h('option',{value:v.name},v.name+' · '+v.lang);if(v.name===cur)o.selected=true;return o}):[h('option',{value:''},'Voices are loading…')]))};
   fill();try{speechSynthesis.onvoiceschanged=fill}catch{}
-  sel.onchange=()=>{saveSettings({voiceName:sel.value});speak('Hi'+(myName()?' '+myName().split(' ')[0]:'')+', I’m Daylo.')};
+  sel.onchange=()=>{saveSettings({voiceName:sel.value});speak('Hi'+(myName()?' '+myName().split(' ')[0]:'')+'.')};
   const rate=h('input',{type:'range',min:'0.7',max:'1.3',step:'0.05',value:String(st.voiceRate||1),oninput:e=>{S.settings.voiceRate=Number(e.target.value)},onchange:e=>{saveSettings({voiceRate:Number(e.target.value)});speak('This is my speed.')}});
   const tb=h('input',{type:'checkbox',checked:st.talkBack!==false,onchange:e=>saveSettings({talkBack:e.target.checked})});
   return h('section',{class:'panel',id:'voice-panel'},h('div',{class:'panel-head'},h('h2',null,'Voice')),h('div',{class:'panel-body form'},
-    h('p',{class:'small muted'},'Tap the microphone at the top to talk to Daylo. Pick how Daylo sounds when it talks back.'),
-    h('label',{class:'confirm-box'},tb,h('span',null,'Daylo talks back')),
+    h('p',{class:'small muted'},'Pick the voice you hear.'),
+    h('label',{class:'confirm-box'},tb,h('span',null,'Talk back to me')),
     field('Voice',sel,'For more natural voices: iPhone Settings → Accessibility → Spoken Content → Voices, download an “Enhanced” or “Premium” voice, then come back here.'),
     h('div',{class:'row'},h('button',{class:'btn sm ghost',type:'button',onclick:()=>{VO.allLangs=!VO.allLangs;fill()}},'All languages')),
     field('Speed',rate),
@@ -2986,8 +2986,7 @@ async function openMail(threadId){
   const to=them.p.mine?'':them.p.from.email;
   closeDrawer();
   openDrawer(them.p.fromName||'Email',view,[
-    h('button',{class:'btn primary',onclick:()=>{closeDrawer();openComposer({to,subject:'Re: '+subj});if(CP)CP.gmail={threadId,msgId,refs}}},icon('reply'),'Reply'),
-    h('a',{class:'btn',href:gmailUrl('#all/'+threadId),target:'_blank',rel:'noopener'},'Open in Gmail')]);
+    h('button',{class:'btn primary',onclick:()=>{closeDrawer();openComposer({to,subject:'Re: '+subj});if(CP)CP.gmail={threadId,msgId,refs}}},icon('reply'),'Reply')]);
 }
 
 /* ---------- Check my English (spelling and grammar) ---------- */
@@ -3063,7 +3062,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 try{const t=THEMES.find(x=>x[0]==='ivory');if(t){t[1]='Studio';t[2]='Bright white, soft cocoa';t[3]='#FAFAF9';t[4]='#EFEBE7';t[5]='#6E5A4C'}}catch{}
 /* mic in the middle of the bottom bar; + moves to the top */
 const _renderTabbarS=renderTabbar;
-renderTabbar=function(){_renderTabbarS();try{const a=document.querySelector('#tabbar .tab.add');if(a){const n=h('button',{class:'tab add mic','aria-label':'Talk to Daylo',onclick:()=>openVoice()},icon('mic'));a.replaceWith(n)}}catch(e){console.error(e)}};
+renderTabbar=function(){_renderTabbarS();try{const a=document.querySelector('#tabbar .tab.add');if(a){const n=h('button',{class:'tab add mic','aria-label':'Talk',onclick:()=>openVoice()},icon('mic'));a.replaceWith(n)}}catch(e){console.error(e)}};
 renderSide=(function(prev){return function(){prev();try{const tr=document.querySelector('.top-right');if(!tr)return;const m=tr.querySelector('.mic-btn');if(m)m.remove();if(!tr.querySelector('.plus-btn')){tr.insertBefore(h('button',{class:'bell plus-btn','aria-label':'Add something',title:'Add',onclick:quickAdd},icon('plus')),tr.querySelector('.bell'))}}catch{}}})(renderSide);
 document.head.append(Object.assign(document.createElement('style'),{textContent:`
 :root[data-theme="ivory"]{--bg:#FAFAF9!important;--side:#FAFAF9!important;--card:#FFFFFF!important;--panel:#FFFFFF!important;--fg:#222120!important;--muted:#91908C!important;--line:#E8E8E5!important;--line2:#DCDCD8!important;--primary:#6E5A4C!important;--on-primary:#fff!important;--green:#F1F1EF!important;--green2:#EFEBE7!important;--glass:#F1F1EF!important;--glass-line:#E8E8E5!important;--gold:#6E5A4C!important;--surface2:#F1F1EF;
@@ -3145,6 +3144,51 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 :root[data-theme="ivory"] .table-wrap th{font:600 12px var(--f-body);color:var(--muted)}
 `}));
 
+/* ---------- the Daylo mark (sunrise over your list), used instead of the name ---------- */
+function logoMark(size,draw){const s=document.createElement('span');s.className='logo-mark'+(draw?' draw':'');s.setAttribute('aria-label','Daylo');s.setAttribute('role','img');
+  s.innerHTML='<svg width="'+(size||28)+'" height="'+(size||28)+'" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path pathLength="1" d="M11 29a13 13 0 0 1 26 0"/><path pathLength="1" d="M6 29h36"/><path pathLength="1" d="M15 36h18" opacity=".5"/></svg>';return s}
+(function splashMark(){const sp=document.getElementById('splash');if(!sp)return;const i=sp.querySelector('.sp-in');if(i)i.replaceChildren(logoMark(92,true))})();
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.logo-mark{display:inline-grid;place-items:center;color:#6E5A4C;line-height:0}
+.brand .logo-mark{color:#222120}
+.logo-mark.draw path{stroke-dasharray:1;stroke-dashoffset:1;animation:spDraw .9s ease forwards}
+.logo-mark.draw path:nth-child(2){animation-delay:.25s}.logo-mark.draw path:nth-child(3){animation-delay:.45s}
+`}));
+
+/* ---------- stay inside Daylo: no "open in Gmail" ---------- */
+document.head.append(Object.assign(document.createElement('style'),{textContent:`a[href*="mail.google.com"]{display:none!important}
+.brand .grow .logo-mark,.brand .logo-mark{display:inline-grid!important}`}));
+function pageInbox(){
+  const sent=[...S.sent].sort((a,b)=>(b.sentAt||0)-(a.sentAt||0));
+  return h('div',{class:'page'},head('Email','',h('button',{class:'btn primary',onclick:()=>openComposer({})},icon('mail'),'Write')),
+    gmailInboxPanel(),
+    sent.length?h('section',{class:'panel'},h('div',{class:'panel-head'},h('h2',null,'Sent'),h('span',{class:'small muted'},sent.length)),
+      h('div',{class:'list'},sent.slice(0,20).map(s=>h('div',{class:'item click',role:'button',tabindex:'0',onclick:()=>s.threadId&&typeof openMail==='function'?openMail(s.threadId):showSentRecord(s)},h('div',{class:'avatar'},icon('send')),h('div',{class:'grow'},h('div',{class:'t'},(s.to||[]).join(', ')),h('div',{class:'sub'},(s.subject||'(no subject)')+' · '+fmtFull(s.sentAt))))))):null);
+}
+
+/* ---------- saved companies and numbered invoices ---------- */
+const _saveS=save;
+async function ensureContact(name,email,brand){
+  email=String(email||'').trim().toLowerCase();if(!validEmail(email)||isNoReply(email)||/@([a-z0-9-]+\.)*(paypal|stripe|venmo|wise|zelle|squareup|square|intuit|quickbooks|payoneer|cash\.app|revolut|bill\.com)\./i.test(email))return;
+  if(S.contacts.some(c=>(c.email||'').toLowerCase()===email))return;
+  await _saveS('contacts',{name:name||brand||email.split('@')[0],email,brand:brand||name||'',type:'Brand',fromDaylo:true});
+}
+save=async function(coll,obj){
+  const id=await _saveS(coll,obj);
+  try{if(coll==='campaigns')await ensureContact(obj.brand,obj.contactEmail,obj.brand);if(coll==='invoices')await ensureContact(obj.client,obj.clientEmail,obj.client)}catch(e){console.error(e)}
+  return id;
+};
+/* money found in email gets a numbered invoice record, so Payments is never empty */
+const _trackMoneyS=trackMoney;
+trackMoney=async function(x,quiet){
+  const cid=await _trackMoneyS(x,true);
+  try{if((x.kind==='paid'||x.kind==='owed')&&x.amount&&!S.invoices.some(i=>i.campaignId===cid||(i.gmailThread&&i.gmailThread===x.threadId))){
+    const c=S.campaigns.find(c=>c.id===cid)||{};const day=ymd(new Date(x.at||Date.now()));
+    await save('invoices',{number:nextInvoiceNumber(),status:x.kind==='paid'?'Paid':'Sent',issued:day,due:x.kind==='paid'?day:addDays(day,30),paidOn:x.kind==='paid'?day:'',client:x.brand,clientEmail:c.contactEmail||'',description:x.subject||c.campaign||'',amount:x.amount.n,currency:x.amount.cur,campaignId:cid,gmailThread:x.threadId,notes:'Made from your email'})}}catch(e){console.error(e)}
+  if(!quiet){toast(x.brand+' added');renderMain()}
+  return cid;
+};
+
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
 S.booted=false;
@@ -3174,7 +3218,7 @@ async function enterAccount(email){
 }
 async function signOut(msg){await persistNow();CUR=null;try{await IDB.del('cur')}catch{}COLLS.forEach(c=>S[c]=[]);S.settings={};applyTheme();
   ONB={step:'start',role:'',err:'',pick:null,show:false};for(const a of ACCTS)await loadImg(a.avatarId);renderSide();renderMain();if(msg)toast(msg)}
-function finishEntry(isNew){ONB={step:'start',role:'',err:'',pick:null,show:false};document.body.classList.remove('onb','onb-start');renderSide();if(S.settings.onboarded){go('today');const f=(S.settings.name||'').split(' ')[0];toast((isNew?'Welcome to Daylo':'Welcome back')+(f?', '+f:'')+'!')}else renderMain()}
+function finishEntry(isNew){ONB={step:'start',role:'',err:'',pick:null,show:false};document.body.classList.remove('onb','onb-start');renderSide();if(S.settings.onboarded){go('today');const f=(S.settings.name||'').split(' ')[0];toast((isNew?'Welcome':'Welcome back')+(f?', '+f:'')+'!')}else renderMain()}
 function faceOf(a,cls){const u=blobUrl(a.avatarId);return h('span',{class:cls||'acct-face'},u?h('img',{src:u,alt:''}):initials(a.name||a.email))}
 function pwInput(name,id,ph,auto){const i=h('input',{class:'input',name,id,type:ONB.show?'text':'password',autocomplete:auto,placeholder:ph,minlength:'6'});
   return h('div',{class:'pw-row'},i,h('button',{type:'button',class:'btn sm ghost',onclick:e=>{ONB.show=!ONB.show;document.querySelectorAll('.pw-row input').forEach(x=>x.type=ONB.show?'text':'password');e.currentTarget.textContent=ONB.show?'Hide':'Show'}},ONB.show?'Hide':'Show'))}
@@ -3402,7 +3446,7 @@ function demoData(){
 }
 function loadDemo(){const d=demoData();COLLS.forEach(c=>S[c]=[...S[c].filter(x=>!String(x.id).startsWith('d-')),...(d[c]||[])]);const mine=S.settings||{};S.settings={...d.settings,...Object.fromEntries(Object.entries(mine).filter(([k,v])=>v!==''&&v!=null)),demo:true};persist();schedule()}
 function removeExamples(){COLLS.forEach(c=>S[c]=S[c].filter(x=>!String(x.id).startsWith('d-')));S.settings={...S.settings,demo:false};persist();schedule();toast('Examples removed')}
-function guestBanner(){if(typeof CUR==='undefined'||!CUR||typeof acct!=='function'||!(acct(CUR)||{}).guest)return null;return h('div',{class:'guest-row'},h('span',null,'You’re trying Daylo'),h('button',{onclick:()=>{go('settings');scrollToId('account')}},'Save with email →'))}
+function guestBanner(){if(typeof CUR==='undefined'||!CUR||typeof acct!=='function'||!(acct(CUR)||{}).guest)return null;return h('div',{class:'guest-row'},h('span',null,'Guest mode'),h('button',{onclick:()=>{go('settings');scrollToId('account')}},'Save with email →'))}
 function demoBanner(){return h('div',{class:'notice info'},icon('spark'),h('div',{class:'grow'},h('p',null,h('b',null,'This is a demo with example data. '),'Try anything: add a '+V().one.toLowerCase()+', plan your week, write an email. Your changes stay in your browser only.'),
   h('div',{class:'row',style:'margin-top:10px;gap:6px'},h('span',{class:'small muted'},'Try it as:'),ROLES.map(([k,l])=>h('button',{class:'chip',style:role()===k?'background:var(--primary);color:var(--on-primary);border-color:var(--primary)':'',onclick:()=>{S.settings={...S.settings,role:k};persist();schedule()}},l))),
   h('div',{class:'row',style:'margin-top:8px'},h('button',{class:'btn sm primary',onclick:removeExamples},'Remove examples'),h('button',{class:'btn sm',onclick:()=>{loadDemo();toast('Example data restored')}},'Reset examples'))))}
