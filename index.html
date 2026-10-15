@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610150816';
+const BUILD_ID='202610150820';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -4707,6 +4707,42 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 briefCard=function(){return document.createDocumentFragment()};
 pageToday=(function(prev){return function(){const el=prev();try{el.querySelectorAll('.mb').forEach(n=>n.remove())}catch{}return el}})(pageToday);
 document.head.append(Object.assign(document.createElement('style'),{textContent:`.u1{min-height:calc(100dvh - 190px)}.u1-glow{bottom:-40px!important}`}));
+
+/* ===================== Today: a short timeline under the card (Late · Today · This week) ===================== */
+function todayTimeline(){
+  const t=ymd();const end=addDays(weekStartOf(t),6);const now=Date.now();
+  const rows=[];
+  const tasks=(S.tasks||[]).filter(x=>!x.done&&x.due&&x.due<=end);
+  tasks.forEach(x=>rows.push({g:x.due<t?0:x.due===t?1:2,sort:x.due+(x.time||'99'),label:x.due<t?'Late':x.due===t?(x.time?fmtTime(x.time):'Today'):DOW[parseYmd(x.due).getDay()].slice(0,3),title:x.title||'Untitled',task:x}));
+  const taskCamp=new Set(tasks.map(x=>x.campaignId).filter(Boolean));
+  (S.campaigns||[]).filter(c=>dealBucket(c)==='deliver'&&!taskCamp.has(c.id)).forEach(c=>{const due=c.dueDate||c.postingDate;if(!due||due>end)return;
+    rows.push({g:due<t?0:due===t?1:2,sort:due+'98',label:due<t?'Late':due===t?'Today':DOW[parseYmd(due).getDay()].slice(0,3),title:'Deliver · '+(c.brand||'content'),deal:c})});
+  for(let i=0;i<=6;i++){const d=addDays(t,i);if(d>end)break;calEventsOn(d).forEach(e=>{if(i===0&&!e.allDay&&new Date(e.end||e.start).getTime()<now)return;
+    rows.push({g:i===0?1:2,sort:d+(e.allDay?'00':new Date(e.start).toTimeString().slice(0,5)),label:i===0?evTime(e):DOW[parseYmd(d).getDay()].slice(0,3),title:e.title,ev:e})})}
+  rows.sort((a,b)=>a.g-b.g||a.sort.localeCompare(b.sort));
+  const shown=rows.slice(0,6);if(!shown.length)return h('section',{class:'tl tl-empty'},h('p',null,'Nothing due this week. ',h('em',null,'Plan something brilliant.')));
+  const G=['Late','Today','This week'];let last=-1;const out=[];
+  shown.forEach(r=>{if(r.g!==last){out.push(h('div',{class:'tl-g'+(r.g===0?' late':'')},G[r.g]));last=r.g}
+    out.push(h('div',{class:'tl-row'},
+      r.task?h('button',{class:'tl-ck','aria-label':'Mark done',onclick:()=>attempt(()=>save('tasks',{...r.task,done:true,doneAt:Date.now()}))}):h('span',{class:'tl-ev'+(r.ev?' ev':'')}),
+      h('button',{class:'tl-tx',onclick:()=>r.task?openTask(r.task):r.ev?openEvent(r.ev):openCampaign(r.deal)},h('span',{class:'tl-t'},r.title)),
+      (r.label==='Late'||r.label==='Today')?null:h('span',{class:'tl-l'},r.label)))});
+  if(rows.length>shown.length||rows.length)out.push(h('button',{class:'tl-more',onclick:()=>{S.dayPick=t;S.schedView='day';go('schedule')}},'See calendar →'));
+  return h('section',{class:'tl'},out)}
+pageToday=(function(prev){return function(){const el=prev();try{const cv=el.querySelector('.cv');if(cv&&window.innerWidth<1000)cv.after(todayTimeline())}catch(e){console.error(e)}return el}})(pageToday);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.tl{background:rgba(250,250,249,.6);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.75);border-radius:26px;padding:6px 18px 8px;display:flex;flex-direction:column}
+.tl-g{font:600 10.5px var(--f-body);letter-spacing:.16em;text-transform:uppercase;color:#857A70;padding:14px 0 4px}.tl-g.late{color:#141312}
+.tl-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.tl-ck{width:22px;height:22px;border-radius:50%;border:1.6px solid #B9B3AC;background:none;flex:none;cursor:pointer;padding:0}
+.tl-ck:active{background:#222120;border-color:#222120}
+.tl-ev{width:22px;flex:none;display:grid;place-items:center}.tl-ev::before{content:"";width:8px;height:8px;border-radius:50%;background:#B9AC9F}.tl-ev.ev::before{width:12px;height:2.6px;border-radius:2px;background:#141312}
+.tl-tx{flex:1;min-width:0;border:0;background:none;padding:0;text-align:left;cursor:pointer;color:#141312;font:inherit}
+.tl-t{display:block;font:500 15.5px var(--f-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-l{font:600 12px var(--f-body);color:#857A70;flex:none;font-variant-numeric:tabular-nums}.tl-l.late{color:#141312}
+.tl-more{align-self:flex-start;border:0;background:none;font:600 11px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:#857A70;padding:14px 0 8px;cursor:pointer}
+.tl-empty p{margin:14px 0;font:400 18px Lora,Georgia,serif;color:#141312}.tl-empty em{color:#6B625B}
+`}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
