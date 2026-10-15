@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610150736';
+const BUILD_ID='202610150757';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -4606,6 +4606,64 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .u1 .pk{background:rgba(250,250,249,.55);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.7);border-radius:24px;padding:4px 16px 8px}
 @media (prefers-reduced-motion:reduce){.u1-glow i{animation:none}}
 `}));
+
+/* ===================== Morning Brief + Follow-up Radar ("nothing slips") ===================== */
+function daysSince(ms){return ms?Math.floor((Date.now()-ms)/864e5):0}
+function contactFor(c){const em=(c.contactEmail||'').toLowerCase();return (S.contacts||[]).find(x=>(x.email||'').toLowerCase()===em)||{}}
+function firstName(s){return String(s||'').trim().split(/\s+/)[0]||'there'}
+function draftNudge(c,kind){const ct=contactFor(c);const me=(myName()||'').split(' ')[0]||'';const amt=dealAmt(c);
+  const body=kind==='pay'?`Hi ${firstName(ct.name)},\n\nHope you’re well! Just a quick check on the payment for ${c.campaign||'our collaboration'}${amt&&amt!=='Gift'?' ('+amt+')':''}. Could you let me know when it’s scheduled?\n\nThank you so much,\n${me}`
+   :`Hi ${firstName(ct.name)},\n\nJust floating this back to the top of your inbox — I’d love to make this happen. Let me know if you need anything from me!\n\nBest,\n${me}`;
+  openComposer({to:c.contactEmail||'',subject:(kind==='pay'?'Quick check on payment':'Following up')+(c.brand?' · '+c.brand:''),body});
+  if(CP&&c.threadId)CP.gmail={threadId:c.threadId};
+}
+function radarItems(){const out=[];const t=ymd();
+  (S.campaigns||[]).forEach(c=>{const b=dealBucket(c);const d=daysSince(c.updatedAt);
+    if(b==='waiting'&&d>=10)out.push({w:3,c,kind:'pay',title:c.brand||'Brand',sub:(dealAmt(c)||'Payment')+' · waiting '+d+' days',btn:'Nudge'});
+    else if(b==='talks'&&d>=6)out.push({w:2,c,kind:'quiet',title:c.brand||'Brand',sub:'Gone quiet · '+d+' days',btn:'Follow up'});
+    if(b==='deliver'){const due=c.dueDate||c.postingDate;if(due&&due<=addDays(t,3))out.push({w:due<t?4:1,c,kind:'due',title:c.brand||'Brand',sub:(due<t?'Content late · was due ':'Content due ')+fmtDay(due),btn:'Open'})}});
+  return out.sort((a,b)=>b.w-a.w).slice(0,5)}
+function moneyOnTable(){const o={};(S.campaigns||[]).filter(c=>dealBucket(c)==='talks'&&Number(c.feeProposed)).forEach(c=>{const k=c.currency||defCur();o[k]=(o[k]||0)+Number(c.feeProposed)});
+  const cur=defCur();return {n:o[cur]||0,cur}}
+function briefScript(){
+  const first=(myName()||'').split(' ')[0];const hr=new Date().getHours();const hi=(hr<12?'Good morning':hr<18?'Hey':'Evening')+(first?', '+first:'')+'.';
+  const parts=[hi];const t=ymd();
+  const mot=moneyOnTable();if(mot.n)parts.push('You have '+compactMoney(mot.n,mot.cur)+' in offers on the table.');
+  const r=radarItems();const pay=r.filter(x=>x.kind==='pay');const quiet=r.filter(x=>x.kind==='quiet');const due=r.filter(x=>x.kind==='due');
+  if(pay.length)parts.push(pay[0].title+' still owes you'+(dealAmt(pay[0].c)&&dealAmt(pay[0].c)!=='Gift'?' '+dealAmt(pay[0].c):'')+'. I drafted a polite nudge.');
+  if(quiet.length)parts.push(quiet[0].title+' went quiet. Worth a follow-up.');
+  if(due.length)parts.push(due[0].title+' content is '+(due[0].sub.startsWith('Content late')?'late':'due soon')+'.');
+  const evs=calEventsOn(t).filter(e=>e.allDay||new Date(e.end||e.start).getTime()>Date.now());if(evs.length)parts.push('On your calendar: '+evs[0].title+(evs[0].allDay?'':' at '+evTime(evs[0]))+'.');
+  const todo=S.tasks.filter(x=>!x.done&&x.due&&x.due<=t).length;if(todo)parts.push(todo+(todo===1?' thing':' things')+' to do today.');
+  const unread=inboxList().filter(m=>m.unread&&!m.bulk).length;if(unread)parts.push(unread+' unread emails, but only the important ones are on your list.');
+  if(parts.length===1)parts.push('Nothing urgent. Suspicious. Enjoy it.');else parts.push('You’ve got this.');
+  return parts}
+function briefCard(){
+  const lines=briefScript();const mot=moneyOnTable();const r=radarItems();
+  const play=h('button',{class:'mb-play','aria-label':'Play my morning brief',onclick:()=>{if(typeof unlockSpeech==='function')unlockSpeech();if(play.classList.contains('on')){try{speechSynthesis.cancel()}catch{}play.classList.remove('on');return}play.classList.add('on');speak(lines.join(' '),()=>play.classList.remove('on'))}},h('span',{class:'mb-ic'},'▶'),h('span',null,'Morning brief'));
+  return h('section',{class:'mb'},
+    h('div',{class:'mb-top'},play,mot.n?h('button',{class:'mb-money',onclick:()=>{S.campStages=null;go('campaigns')}},h('b',null,compactMoney(mot.n,mot.cur)),h('span',null,'on the table')):null),
+    r.length?h('div',{class:'mb-radar'},h('div',{class:'dm-h'},h('span',null,'Needs a nudge'),h('span',null,String(r.length))),
+      r.map(x=>h('div',{class:'mb-row'},h('span',{class:'mb-dot '+x.kind}),h('button',{class:'mb-tx',onclick:()=>openCampaign(x.c)},h('b',null,x.title),h('span',null,x.sub)),
+        h('button',{class:'mb-act',onclick:()=>x.kind==='due'?openCampaign(x.c):draftNudge(x.c,x.kind)},x.btn)))):null)}
+pageToday=(function(prev){return function(){const el=prev();try{const cv=el.querySelector('.cv');const bc=briefCard();if(cv)cv.after(bc)}catch(e){console.error(e)}return el}})(pageToday);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.mb{display:flex;flex-direction:column;gap:10px}
+.mb-top{display:flex;gap:10px;align-items:stretch}
+.mb-play{flex:1;display:flex;align-items:center;gap:12px;border:0;border-radius:22px;background:#222120;color:#FAFAF9;padding:14px 18px;cursor:pointer;font:600 15px var(--f-body)}
+.mb-ic{width:34px;height:34px;border-radius:50%;background:#FAFAF9;color:#141312;display:grid;place-items:center;font-size:12px;padding-left:2px}
+.mb-play.on .mb-ic{animation:mbPulse 1.2s ease-in-out infinite}
+@keyframes mbPulse{50%{box-shadow:0 0 0 7px rgba(250,250,249,.18)}}
+.mb-money{display:flex;flex-direction:column;justify-content:center;border:0;border-radius:22px;background:rgba(236,229,220,.85);padding:10px 16px;cursor:pointer;text-align:left;color:#141312}
+.mb-money b{font:400 24px/1 Lora,Georgia,serif}.mb-money span{font:600 9.5px var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:#857A70;margin-top:4px}
+.mb-radar{background:rgba(250,250,249,.6);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.75);border-radius:24px;padding:2px 16px 8px}
+.mb-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+.mb-dot{width:9px;height:9px;border-radius:50%;flex:none;background:#C9C7C3}.mb-dot.pay{background:#222120}.mb-dot.quiet{border:1.6px solid #222120;background:none}.mb-dot.due{background:#B9AC9F}
+.mb-tx{flex:1;min-width:0;border:0;background:none;padding:0;text-align:left;cursor:pointer;color:#141312;font:inherit;display:flex;flex-direction:column;gap:1px}
+.mb-tx b{font:600 14.5px var(--f-body)}.mb-tx span{font:400 13px var(--f-body);color:#6F6C67}
+.mb-act{border:1px solid #DCD3C8;background:#F5F1EB;border-radius:14px;padding:7px 12px;font:600 12.5px var(--f-body);color:#141312;cursor:pointer;flex:none}
+`}));
+document.head.append(Object.assign(document.createElement('style'),{textContent:`@media (max-width:999px){.u1 .cv{min-height:0!important}.u1 .cv-grow{flex:0 0 40px!important}}`}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
