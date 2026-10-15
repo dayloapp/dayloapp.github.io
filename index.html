@@ -4704,7 +4704,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 /* money shows "$450", never "US$450", on any phone language */
 (function(){const NF=Intl.NumberFormat;const W=function(l,o){if(o&&o.style==='currency'&&!o.currencyDisplay)o=Object.assign({},o,{currencyDisplay:'narrowSymbol'});try{return new NF(l,o)}catch(e){return new NF(l,Object.assign({},o,{currencyDisplay:'symbol'}))}};W.prototype=NF.prototype;W.supportedLocalesOf=NF.supportedLocalesOf;Intl.NumberFormat=W})();
 /* Today = only what matters: no morning brief, no voice, no nudge list */
-briefCard=function(){return null};
+briefCard=function(){return document.createDocumentFragment()};
 pageToday=(function(prev){return function(){const el=prev();try{el.querySelectorAll('.mb').forEach(n=>n.remove())}catch{}return el}})(pageToday);
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
