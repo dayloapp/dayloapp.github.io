@@ -2644,7 +2644,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610142029';
+const BUILD_ID='202610142034';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -4245,7 +4245,8 @@ renderAll();
   }
   COLLS.forEach(c=>S.ready[c]=true);
   if(!ACCOUNTS_ON&&!S.settings.onboarded&&(S.campaigns.length||S.tasks.length))S.settings.onboarded=true;
-  if(ACCOUNTS_ON&&!CUR&&/[?&]try\b/.test(location.search))ONB.step='guest';
+  if(ACCOUNTS_ON&&!CUR&&/[?&]try\b/.test(location.search)&&!ACCTS.length)ONB.step='guest';
+  try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch{}
   S.booted=true;
   C.assets=localAssets;
   await loadImg(S.settings.avatarId);await loadImg(S.settings.coverId);applyTheme();
