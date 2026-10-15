@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610150829';
+const BUILD_ID='202610150832';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -4748,11 +4748,11 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 function smartMoney(){
   const waiting=S.campaigns.filter(c=>dealBucket(c)==='waiting');const o={};waiting.forEach(c=>{const v=Number(c.feeConfirmed||c.feeProposed||0);if(v){const k=c.currency||defCur();o[k]=(o[k]||0)+v}});
   (S.settings.gmailMoney||[]).filter(x=>x.kind==='owed'&&x.amount&&!waiting.some(c=>c.threadId===x.threadId)).forEach(x=>{o[x.amount.cur]=(o[x.amount.cur]||0)+x.amount.n});
-  const cur=defCur();if(o[cur])return {v:compactMoney(o[cur],cur),l:'Owed to you',hi:true,go:()=>go('campaigns')};
-  const mot=moneyOnTable();if(mot.n)return {v:compactMoney(mot.n,mot.cur),l:'On the table',hi:true,go:()=>go('campaigns')};
-  const open=S.campaigns.filter(c=>['talks','deliver'].includes(dealBucket(c))).length;if(open)return {v:String(open),l:open===1?'Deal open':'Deals open',go:()=>go('campaigns')};
-  const g=Number(S.settings.moneyGoal||0);if(g){const mm=monthMoney();return {v:Math.min(100,Math.round(mm.n/g*100))+'%',l:'Of your goal',go:()=>go('campaigns')}}
-  return {v:'Pitch',l:'a brand →',go:()=>openCampaign(null)}}
+  const cur=defCur();if(o[cur])return {v:compactMoney(o[cur],cur),l:'Owed',hi:true,go:()=>go('campaigns')};
+  const mot=moneyOnTable();if(mot.n)return {v:compactMoney(mot.n,mot.cur),l:'Offers',hi:true,go:()=>go('campaigns')};
+  const open=S.campaigns.filter(c=>['talks','deliver'].includes(dealBucket(c))).length;if(open)return {v:String(open),l:open===1?'Deal':'Deals',go:()=>go('campaigns')};
+  const g=Number(S.settings.moneyGoal||0);if(g){const mm=monthMoney();return {v:Math.min(100,Math.round(mm.n/g*100))+'%',l:'Goal',go:()=>go('campaigns')}}
+  return {v:'Pitch',l:'A brand',go:()=>openCampaign(null)}}
 function nextItem(){const tl=todayTimeline();const row=tl.querySelector('.tl-row');if(!row)return null;return row}
 pageToday=(function(prev){return function(){const el=prev();try{
   el.querySelectorAll('.tl,.fx').forEach(n=>n.remove());
