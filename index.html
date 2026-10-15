@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610150843';
+const BUILD_ID='202610150849';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -4805,6 +4805,82 @@ moreMenu=function(){
 addSheet=function(){openTask({type:'Other',due:ymd(),done:false})};
 pageToday=(function(prev){return function(){const el=prev();try{el.querySelectorAll('.add-sm').forEach(b=>b.textContent='+ Add task')}catch{}return el}})(pageToday);
 try{for(let i=NAV.length-1;i>=0;i--){if(NAV[i][0]==='campaigns')NAV.splice(i,1)}}catch{}
+
+/* ===================== Styles: Editorial · Sharp · Night (Settings → Style) ===================== */
+const LOOKS=[['editorial','Editorial','Serif headlines, soft beige glow'],['sharp','Sharp','Bold clean letters, crisp lines'],['night','Night','Dark and calm, easy on the eyes']];
+function applyLook(){const v=(S.settings&&S.settings.look)||'editorial';document.documentElement.dataset.look=v;const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=v==='night'?'#161514':(v==='sharp'?'#F4F4F2':'#FAFAF9')}
+setInterval(()=>{try{const v=(S.settings&&S.settings.look)||'editorial';if(document.documentElement.dataset.look!==v)applyLook()}catch{}},800);
+function lookPanel2(){const cur=(S.settings.look)||'editorial';
+  return h('section',{class:'lk'},h('div',{class:'dm-h'},h('span',null,'Style')),
+    h('div',{class:'lk-grid'},LOOKS.map(([k,n,d])=>h('button',{class:'lk-opt lk-'+k+(cur===k?' on':''),'aria-pressed':String(cur===k),onclick:async()=>{await saveSettings({look:k});applyLook();renderMain();renderTabbar()}},
+      h('span',{class:'lk-prev'},h('b',null,'Aa'),h('i')),h('span',{class:'lk-n'},n),h('span',{class:'lk-d'},d)))))}
+pageSettings=(function(prev){return function(){const el=prev();try{const hd=el.querySelector('.page-head');(hd?hd:el.firstChild).after?((hd||el.firstChild).after(lookPanel2())):el.prepend(lookPanel2())}catch(e){console.error(e);el.prepend(lookPanel2())}return el}})(pageSettings);
+setTimeout(applyLook,200);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.lk{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.lk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.lk-opt{display:flex;flex-direction:column;gap:6px;align-items:flex-start;border:1.5px solid #E4E0DA;background:#FAFAF9;border-radius:20px;padding:12px;cursor:pointer;text-align:left;color:#141312;font:inherit}
+.lk-opt.on{border-color:#141312}
+.lk-prev{width:100%;height:64px;border-radius:12px;display:flex;align-items:center;justify-content:space-between;padding:0 12px}
+.lk-prev i{width:22px;height:8px;border-radius:4px}
+.lk-editorial .lk-prev{background:#ECE5DC}.lk-editorial .lk-prev b{font:italic 400 26px Lora,Georgia,serif}.lk-editorial .lk-prev i{background:#B9AC9F}
+.lk-sharp .lk-prev{background:#fff;border:1.5px solid #141312}.lk-sharp .lk-prev b{font:800 24px Inter,system-ui,sans-serif}.lk-sharp .lk-prev i{background:#141312}
+.lk-night .lk-prev{background:#22201E}.lk-night .lk-prev b{font:500 24px Inter,system-ui,sans-serif;color:#F4F1EC}.lk-night .lk-prev i{background:#6B625B}
+.lk-n{font:600 14px var(--f-body)}.lk-d{font:400 12px/1.35 var(--f-body);color:#857A70}
+@media (max-width:420px){.lk-d{display:none}}
+
+/* ---- Sharp ---- */
+html[data-look="sharp"] body{background:#F4F4F2!important}
+html[data-look="sharp"] #main *:not(svg):not(svg *),html[data-look="sharp"] #overlay *:not(svg):not(svg *){font-family:Inter,system-ui,sans-serif!important}
+html[data-look="sharp"] em{font-style:normal!important}
+html[data-look="sharp"] .cv-hl{font-weight:800!important;letter-spacing:-.035em!important}
+html[data-look="sharp"] .cv-hl em{color:#6B6B6B!important}
+html[data-look="sharp"] .cv-num b,html[data-look="sharp"] .sh-title h1,html[data-look="sharp"] .mm-title,html[data-look="sharp"] .nt-txt b,html[data-look="sharp"] .dm-tx b,html[data-look="sharp"] .dm-sum b,html[data-look="sharp"] .goal-nums b,html[data-look="sharp"] .mv2-title,html[data-look="sharp"] .nt-title{font-weight:700!important;letter-spacing:-.025em}
+html[data-look="sharp"] .u1-glow{display:none}
+html[data-look="sharp"] .u1 .cv,html[data-look="sharp"] .nx,html[data-look="sharp"] .tl,html[data-look="sharp"] .mb-radar,html[data-look="sharp"] .mm-row,html[data-look="sharp"] .nt-card,html[data-look="sharp"] .dm-sum,html[data-look="sharp"] .dk-box{background:#fff!important;backdrop-filter:none!important;border:1.5px solid #141312!important;border-radius:14px!important;box-shadow:none!important}
+html[data-look="sharp"] .dm-card,html[data-look="sharp"] .goal-card{border-radius:14px!important}
+html[data-look="sharp"] #tabbar.tb5 .tb-pill{background:#141312;border-radius:12px}
+html[data-look="sharp"] #tabbar.tb5 .tab5[aria-current="page"]{color:#FAFAF9}
+html[data-look="sharp"] #tabbar.tb5{background:#fff!important}
+
+/* ---- Night ---- */
+html[data-look="night"]{color-scheme:dark}
+html[data-look="night"] body,html[data-look="night"] .side,html[data-look="night"] .main{background:#161514!important;color:#F4F1EC!important}
+html[data-look="night"] .blobs,html[data-look="night"] .u1-glow{display:none}
+html[data-look="night"] #main *:not(svg):not(svg *):not(.mail-tab4):not(.tl-ck):not(.nx-ck){color:#EDE8E1}
+html[data-look="night"] #main *:not(svg):not(svg *){font-family:Inter,system-ui,sans-serif!important}
+html[data-look="night"] em{font-style:normal!important}
+html[data-look="night"] .cv-hl em,html[data-look="night"] .cv-date,html[data-look="night"] .cv-num span,html[data-look="night"] .sh-sub,html[data-look="night"] .sh-time,html[data-look="night"] .lbl,html[data-look="night"] .dm-h span,html[data-look="night"] .nx-l,html[data-look="night"] .mm-tx span,html[data-look="night"] .nt-meta,html[data-look="night"] .lk-d,html[data-look="night"] .sh-cap,html[data-look="night"] .mm-w,html[data-look="night"] .mm-leg span,html[data-look="night"] .dm-tx small{color:#A8A097!important}
+html[data-look="night"] .u1 .cv,html[data-look="night"] .nx,html[data-look="night"] .tl,html[data-look="night"] .mb-radar,html[data-look="night"] .mm-row,html[data-look="night"] .dk-box,html[data-look="night"] .dm-sum,html[data-look="night"] .sh-search .input,html[data-look="night"] .lk-opt,html[data-look="night"] .nt-empty,html[data-look="night"] .gc-connect,html[data-look="night"] .goal-card.empty{background:#22201E!important;border-color:#2F2C29!important;backdrop-filter:none!important;box-shadow:none!important}
+html[data-look="night"] .sh-row,html[data-look="night"] .sw-day,html[data-look="night"] .mm-row,html[data-look="night"] .tl-row,html[data-look="night"] .ct-line,html[data-look="night"] .pk-row,html[data-look="night"] .mb-row{border-color:#2F2C29!important}
+html[data-look="night"] .mm-d.today{background:#F4F1EC!important}html[data-look="night"] .mm-d.today b{color:#141312!important}
+html[data-look="night"] .mm-d.busy{background:#2A2725!important}
+html[data-look="night"] .dm-card[style*="#F4F0EA"],html[data-look="night"] .dm-card[style*="#ECE5DC"],html[data-look="night"] .dm-card[style*="#DCD7D0"]{background:#2A2725!important}
+html[data-look="night"] #tabbar.tb5{background:rgba(22,21,20,.94)!important;border-top-color:#2A2725}
+html[data-look="night"] #tabbar.tb5 .tab5{color:#7E776F}html[data-look="night"] #tabbar.tb5 .tab5[aria-current="page"]{color:#F4F1EC}
+html[data-look="night"] #tabbar.tb5 .tb-pill{background:#33302C}
+html[data-look="night"] .top-more span{background:#F4F1EC}
+html[data-look="night"] .logo-mark{color:#F4F1EC!important}
+html[data-look="night"] #overlay .drawer,html[data-look="night"] #overlay .sheet,html[data-look="night"] .drawer-foot,html[data-look="night"] .drawer-head{background:#1E1D1B!important;color:#EDE8E1!important}
+html[data-look="night"] #overlay *:not(svg):not(svg *):not(.btn.primary){color:#EDE8E1}
+html[data-look="night"] #overlay .input,html[data-look="night"] #overlay input,html[data-look="night"] #overlay textarea,html[data-look="night"] #overlay select{background:#2A2725!important;border-color:#3A3633!important;color:#F4F1EC!important}
+html[data-look="night"] .btn:not(.primary){background:#2A2725!important;color:#F4F1EC!important;border-color:#3A3633!important}
+html[data-look="night"] .btn.primary{background:#F4F1EC!important;color:#141312!important}
+html[data-look="night"] .mb-act,html[data-look="night"] .pk-track,html[data-look="night"] .mv2-more,html[data-look="night"] .mv2-acts button{background:#2A2725!important;border-color:#3A3633!important}
+`}));
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+html[data-look="night"][data-theme] body .app aside.side,html[data-look="night"][data-theme] body .app aside.side *{background-color:#161514!important;border-color:#2A2725!important}
+html[data-look="night"][data-theme] body .app aside.side svg,html[data-look="night"] .top-right *{color:#F4F1EC!important}
+html[data-look="night"] .cv-hl{color:#F4F1EC!important}html[data-look="night"] .cv-hl em{color:#A8A097!important}
+html[data-look="night"] .tabs,html[data-look="night"] .sc-tabs{background:#22201E!important}
+html[data-look="night"] .tabs button{color:#A8A097!important;background:transparent!important}
+html[data-look="night"] .tabs button[aria-selected="true"]{background:#33302C!important;color:#F4F1EC!important;box-shadow:none!important}
+html[data-look="night"] .sc-nav button{background:#22201E!important;color:#F4F1EC!important}
+html[data-look="night"] .dm-mono{background:#33302C!important;color:#F4F1EC!important}
+html[data-look="night"] .nt-card{border-color:#2F2C29!important}
+html[data-look="sharp"] .tabs button[aria-selected="true"]{background:#141312!important;color:#FAFAF9!important}
+`}));
+document.head.append(Object.assign(document.createElement('style'),{textContent:`html[data-look="night"] .logo-mark rect{fill:#161514!important}`}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
