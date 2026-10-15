@@ -2527,7 +2527,9 @@ async function sendViaGmail(){
   else lines.push('MIME-Version: 1.0','Content-Type: text/plain; charset=UTF-8','Content-Transfer-Encoding: base64','',bodyB64);
   const payload={raw:b64uEnc(lines.join('\r\n'))};if(snap.gmail&&snap.gmail.threadId)payload.threadId=snap.gmail.threadId;
   const btn=document.getElementById('cf-send');if(btn){btn.disabled=true;btn.textContent='Sending…'}
-  let r;try{r=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{method:'POST',headers:{Authorization:'Bearer '+GTOK,'Content-Type':'application/json'},body:JSON.stringify(payload)})}catch{r=null}
+  let r;try{if(payload.raw.length>4500000){const bd='dl_'+Date.now().toString(36);const mime=lines.join('\r\n');const meta=JSON.stringify(payload.threadId?{threadId:payload.threadId}:{});
+      r=await fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=multipart',{method:'POST',headers:{Authorization:'Bearer '+GTOK,'Content-Type':'multipart/related; boundary='+bd},body:'--'+bd+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+meta+'\r\n--'+bd+'\r\nContent-Type: message/rfc822\r\n\r\n'+mime+'\r\n--'+bd+'--'})}
+    else r=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{method:'POST',headers:{Authorization:'Bearer '+GTOK,'Content-Type':'application/json'},body:JSON.stringify(payload)})}catch{r=null}
   if(!r||!r.ok){if(btn){btn.disabled=false;btn.textContent='Yes, send'}
     if(r&&(r.status===401||r.status===403)){GTOK=null;lsSet(GKEY,null);closeConfirm();needGoogle({draft:{to:snap.to,cc:snap.cc,subject:snap.subject,body:snap.body,gmail:snap.gmail||null}});return}
     toast('Didn’t send. Check your connection and try again.');return}
@@ -2659,7 +2661,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610151732';
+const BUILD_ID='202610151805';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -6238,6 +6240,107 @@ body.ive-open{overflow:hidden}
 }
 html[data-look="night"] .ive{background:#151413}html[data-look="night"] .ive-top,html[data-look="night"] .ive-panel,html[data-look="night"] .mn-sec{background:#1E1C1B;border-color:#2E2B29;color:#FAFAF9}
 html[data-look="night"] .mn-row{color:#FAFAF9;border-color:#2E2B29}html[data-look="night"] .ive-todo-i,html[data-look="night"] .ive-nums label{background:#2A2725;color:#FAFAF9}html[data-look="night"] .ive-nums input{color:#FAFAF9}
+`}));
+
+/* ===================== Writing emails: Polish rewrites the whole email; attach invoices, photos, links, emoji ===================== */
+const GREET_RE=/^\s*((?:hi|hello|hey|hiya|dear|good (?:morning|afternoon|evening)|greetings|hola|bonjour|ciao)\b(?:\s+(?:there|team|all|everyone|guys))?(?:\s+[A-ZÀ-Ý][\wÀ-ÿ'’.-]*(?:\s+[A-ZÀ-Ý][\wÀ-ÿ'’.-]*)?(?:\s+team)?)?)\s*[,!.:-]?\s*/i;
+const SIGN_RE=/(?:^|[\s.!,])((?:best regards|kind regards|warm regards|warmest regards|many thanks|thanks so much|thank you so much|thanks again|thank you|thanks|best wishes|best|regards|cheers|warmly|xoxo|xo|love|talk soon|speak soon|sincerely|all the best|have a great day|have a lovely day))\s*[,!.:-]?\s*((?:[A-ZÀ-Ý][\wÀ-ÿ'’.-]*)(?:\s+[A-ZÀ-Ý][\wÀ-ÿ'’.-]*)?)?\s*$/i;
+const CONTR={im:"I'm",ive:"I've",ill:"I'll",dont:"don't",cant:"can't",wont:"won't",didnt:"didn't",doesnt:"doesn't",isnt:"isn't",wasnt:"wasn't",arent:"aren't",couldnt:"couldn't",wouldnt:"wouldn't",shouldnt:"shouldn't",thats:"that's",whats:"what's",theres:"there's",youre:"you're",theyre:"they're",weve:"we've",youve:"you've",lets:null,id:null};
+function cleanSentences(t){const keep=[];let s=String(t||'').replace(/(https?:\/\/\S+|www\.\S+|[\w.+-]+@[\w-]+\.[\w.-]+|@[\w.]+|\b[\w-]+\.(?:com|net|org|co|io|app|me|shop|store)(?:\/\S*)?)/gi,m=>{const tr=m.match(/[.,!?)]+$/);const core=tr?m.slice(0,-tr[0].length):m;keep.push(core);return '\u0000'+(keep.length-1)+'\u0001'+(tr?tr[0]:'')}).replace(/[ \t]+/g,' ').replace(/ ?\n ?/g,'\n');
+  s=s.replace(/\s+([,.!?;:])/g,'$1').replace(/([,;:])(?=[^\s\d\n])/g,'$1 ').replace(/([.!?])(?=[A-Za-zÀ-ÿ])/g,(m,p,o,str)=>{const before=str.slice(Math.max(0,o-4),o);return /\b(e\.g|i\.e|www|\.com)$/i.test(before)?m:p+' '});
+  s=s.replace(/\bi\b(?!\.e\.)/g,'I').replace(/\b(\w+)\b/g,w=>{const k=w.toLowerCase();return CONTR[k]&&!/[A-Z]{2,}/.test(w)?CONTR[k]:w});
+  s=s.replace(/(^|[.!?]\s+|\n)([a-zà-ÿ])/g,(m,a,b)=>a+b.toUpperCase());
+  s=s.replace(/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|april|june|july|august|september|october|november|december|instagram|tiktok|youtube|pinterest)\b/gi,w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase());
+  s=s.replace(/!{2,}/g,'!').replace(/\?{2,}/g,'?').replace(/\.{4,}/g,'...').replace(/,{2,}/g,',');
+  return s.replace(/\u0000(\d+)\u0001/g,(m,i)=>keep[Number(i)])}
+function endPunct(par){const p=par.trim();if(!p)return p;if(/[.!?…:)"”’\]]$/.test(p)||/https?:\/\/\S+$/.test(p)||/\p{Extended_Pictographic}$/u.test(p))return p;return p+'.'}
+function shapeEmail(raw){let text=String(raw||'').replace(/\r/g,'').trim();if(!text)return text;
+  const sig=(S.settings&&S.settings.signature)||'';let tailSig='';if(sig&&text.endsWith(sig.trim())){tailSig=sig.trim();text=text.slice(0,-tailSig.length).trim()}
+  let greet='';{const gm=text.match(/^\s*(good (?:morning|afternoon|evening)|hi|hello|hey|hiya|dear|greetings|hola|bonjour|ciao)\b[ \t]*/i);
+    if(gm){let rest=text.slice(gm[0].length);let g0=gm[1];const STOP=/^(thanks?|thank|i|i'm|im|we|hope|just|so|how|it|this|the|my|our|please|sorry|quick|following|can|could|would|is|are|was|nice|great|wanted|following|happy|loved?|hello|hi)$/i;
+      const w=rest.match(/^([A-Za-zÀ-ÿ'’.-]+)(?:[ \t]+([A-Za-zÀ-ÿ'’.-]+))?/);
+      if(w&&!/^[,!.:\n]/.test(rest)){if(/^(team|there|all|everyone|guys)$/i.test(w[1])){g0+=' '+w[1];rest=rest.slice(w[1].length)}
+        else if(!STOP.test(w[1])&&w[1].length<16){g0+=' '+w[1];rest=rest.slice(w[1].length);if(w[2]&&/^team$/i.test(w[2])){g0+=' '+w[2];rest=rest.replace(/^[ \t]+team/i,'')}else if(w[2]&&/^[A-ZÀ-Ý]/.test(w[2])&&!STOP.test(w[2])&&/^[ \t]+[A-Za-zÀ-ÿ'’.-]+[ \t]*[,!\n]/.test(rest)){g0+=' '+w[2];rest=rest.replace(/^[ \t]+[A-Za-zÀ-ÿ'’.-]+/,'')}}}
+      greet=g0.replace(/^good (Morning|Afternoon|Evening)/,(m,x)=>'good '+x.toLowerCase()).replace(/\b([a-zà-ÿ])/g,(m,c,o)=>o===0?c.toUpperCase():c).split(' ').map((x,i)=>i>0&&!/^(team|there|all|everyone|guys)$/i.test(x)?x.charAt(0).toUpperCase()+x.slice(1):x).join(' ');text=rest.replace(/^[ \t]*[,!.:-]?\s*/,'')}}
+  let close='',name='';const meFirst=(((typeof invMe==='function'&&invMe().sign)||myName()||'').split(' ')[0]||'').toLowerCase();let m=text.match(SIGN_RE);if(m&&m[2]&&!/^[A-ZÀ-Ý]/.test(m[2])&&m[2].split(' ')[0].toLowerCase()!==meFirst)m=null;if(m&&text.length-m.index<60){close=m[1];name=(m[2]||'').trim().split(' ').map(x=>x.charAt(0).toUpperCase()+x.slice(1)).join(' ');text=text.slice(0,m.index+(/^[\s.!,]/.test(m[0])?1:0)).trim()}
+  if(!name&&close){const me=(typeof invMe==='function'&&invMe().sign)||myName()||'';name=(me.split(' ')[0])||''}
+  let paras=text.split(/\n\s*\n/).map(p=>p.replace(/\n+/g,' ').trim()).filter(Boolean);
+  paras=paras.flatMap(p=>{const ss=p.match(/[^.!?]+(?:[.!?]+|$)\s*/g)||[p];if(ss.length<=3)return [p];const out=[];for(let i=0;i<ss.length;i+=2)out.push(ss.slice(i,i+2).join('').trim());return out});
+  paras=paras.map(p=>endPunct(cleanSentences(p)));
+  const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1):s;
+  const parts=[];if(greet)parts.push(cap(cleanSentences(greet).replace(/[.!]$/,'')).replace(/^Good (Morning|Afternoon|Evening)/i,(m,x)=>'Good '+x.toLowerCase())+',');parts.push(...paras);
+  if(close){const cl=close.toLowerCase();parts.push((/^(xo|xoxo)$/.test(cl)?cl:cap(cl))+','+(name?'\n'+name:''))}
+  let out=parts.join('\n\n');if(tailSig)out+='\n\n'+tailSig;return out}
+async function polishEmail(ta,box){const before=ta.value;if(!before.trim()){toast('Write something first');return}
+  const b=document.getElementById('ck-btn');if(b){b.disabled=true;b.lastChild.textContent='Polishing…'}
+  let v=before;
+  try{const r=await fetch('https://api.languagetool.org/v2/check',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({text:v,language:'auto',preferredVariants:'en-US'})});const j=await r.json();
+    (j.matches||[]).filter(m=>m.replacements&&m.replacements.length&&!/WHITESPACE|EN_QUOTES|DASH_RULE|ELLIPSIS/.test((m.rule||{}).id||'')).sort((a,b)=>b.offset-a.offset).forEach(m=>{const rep=m.replacements[0].value;if(/\p{Extended_Pictographic}/u.test(v.substr(m.offset,m.length)))return;v=v.slice(0,m.offset)+rep+v.slice(m.offset+m.length)})}catch{}
+  v=shapeEmail(v);
+  if(ta.value===before){ta.value=v;if(CP)CP.body=v;ta.dispatchEvent(new Event('input',{bubbles:true}))}
+  if(b){b.disabled=false;b.lastChild.textContent='Polish'}
+  if(box)box.replaceChildren(h('span',{class:'ls-ok'},icon('check'),v===before?'Already looks good':'Polished'),v===before?null:h('button',{type:'button',class:'ls-all',onclick:()=>{ta.value=before;if(CP)CP.body=before;box.replaceChildren()}},'Undo'))}
+checkEnglish=function(ta){polishEmail(ta,document.getElementById('live-sug'))};
+liveCheck=function(){};
+autoPolish=async function(ta){await polishEmail(ta,null)};
+/* --- attachments, links and emoji in the email writer --- */
+const EMOJI=['😊','😍','🥰','😂','🙏','✨','💫','🤍','🖤','💕','🔥','🎉','🙌','👏','💯','📸','🎥','🛍️','💄','👗','☕','🌸','🌿','☀️','🌙','📅','✅','📍','💌','🤝','😉','🤩','🥂','💡','⭐','👀','🙂','😘','🫶','💛'];
+function cpInsert(txt){const ta=document.getElementById('cp-body');if(!ta)return;const c=CP&&CP._caret;const a=c?Math.min(c[0],ta.value.length):ta.value.length,b=c?Math.min(c[1],ta.value.length):a;if(a>0&&!/\s/.test(ta.value.charAt(a-1))&&!/^\s/.test(txt))txt=' '+txt;ta.value=ta.value.slice(0,a)+txt+ta.value.slice(b);ta.selectionStart=ta.selectionEnd=a+txt.length;if(CP){CP.body=ta.value;CP._caret=[a+txt.length,a+txt.length]};ta.focus()}
+const CP_MAX=20*1024*1024;
+function cpAttSize(){return (CP&&CP.attach||[]).reduce((s,a)=>s+(a.size||0),0)}
+async function cpAddFiles(files){if(!CP)return;CP.attach=CP.attach||[];
+  for(const f of files){if(cpAttSize()+f.size>CP_MAX){toast('That’s too big to email. Keep attachments under 20 MB.');break}
+    const b64=await blobB64(f);CP.attach.push({name:f.name||'photo.jpg',type:f.type||'application/octet-stream',b64,size:f.size,blob:f})}
+  cpRedraw()}
+function cpRedraw(){try{syncFields()}catch{}try{drawComposer()}catch(e){console.error(e)}}
+function cpPickInvoice(){const inv=(S.invoices||[]).slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));const ct=(S.contracts||[]).slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  const close=()=>l.remove();
+  const row=(t,s,fn)=>h('button',{class:'cpk-row',onclick:async e=>{const el=e.currentTarget;el.classList.add('busy');try{await fn()}finally{close()}}},h('b',null,t),h('small',null,s));
+  const list=[...inv.map(i=>row((i.client||'Invoice')+' · '+(i.number||''),money(i.amount||0,i.currency)+' · '+(i.status||'Draft'),async()=>{const blob=await invoicePdfBlob(i);CP.attach=CP.attach||[];CP.attach.push({name:invFile(i),type:'application/pdf',b64:await blobB64(blob),size:blob.size,blob});if(!CP.invoice)CP.invoice=i;cpRedraw();toast('Invoice attached.')})),
+    ...ct.map(k=>row(((k.to&&(k.to.name||k.to.company))||'Contract')+' · Collaboration agreement',k.status||'Draft',async()=>{const blob=pdfFromCanvas(await contractCanvas(k));CP.attach=CP.attach||[];CP.attach.push({name:'Collaboration agreement - '+((k.to&&(k.to.name||k.to.company))||'Brand')+'.pdf',type:'application/pdf',b64:await blobB64(blob),size:blob.size,blob});cpRedraw();toast('Contract attached.')}))];
+  const l=h('div',{class:'cpk-layer',onclick:e=>{if(e.target===l)close()}},h('div',{class:'cpk-card'},h('div',{class:'cpk-h'},'Attach from Money'),list.length?h('div',{class:'cpk-list'},...list):h('p',{class:'muted'},'No invoices or contracts yet. Make one in Money.'),h('button',{class:'btn ghost',onclick:close},'Close')));
+  document.body.append(l)}
+function cpLinkBox(anchor){document.querySelector('.cp-pop')?.remove();const u=h('input',{class:'input',type:'url',placeholder:'Paste a link, e.g. your media kit',inputmode:'url'});const t=h('input',{class:'input',placeholder:'Words to show (optional)'});
+  const add=()=>{let url=u.value.trim();if(!url){u.focus();return}if(!/^https?:\/\//i.test(url))url='https://'+url;cpInsert((t.value.trim()?t.value.trim()+': ':'')+url+' ');pop.remove()};
+  const pop=h('div',{class:'cp-pop'},u,t,h('div',{class:'cp-pop-r'},h('button',{class:'btn primary sm',type:'button',onclick:add},'Add link'),h('button',{class:'btn ghost sm',type:'button',onclick:()=>pop.remove()},'Cancel')));
+  anchor.after(pop);u.focus();u.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();add()}})}
+function cpEmojiBox(anchor){const had=document.querySelector('.cp-emo');document.querySelector('.cp-pop')?.remove();if(had)return;
+  const pop=h('div',{class:'cp-pop cp-emo'},...EMOJI.map(e=>h('button',{type:'button',class:'cp-e',onclick:()=>cpInsert(e)},e)));anchor.after(pop)}
+drawComposer=(function(prev){return function(){prev();try{if(!CP||CP.step!=='edit')return;const ta=document.getElementById('cp-body');if(!ta)return;
+  document.querySelectorAll('#overlay .cp-att').forEach(x=>x.remove());if(!ta._cw){ta._cw=1;const keep=()=>{if(CP)CP._caret=[ta.selectionStart,ta.selectionEnd]};['keyup','click','select','input'].forEach(ev=>ta.addEventListener(ev,keep))}
+  const tools=document.querySelector('#overlay .cp-tools')||document.getElementById('ck-btn');if(!tools)return;
+  if(!document.querySelector('#overlay .cpx-add')){
+    const fin=h('input',{type:'file',multiple:true,accept:'image/*,video/*,application/pdf,.doc,.docx,.key,.ppt,.pptx,.xls,.xlsx,.zip',style:'display:none',onchange:e=>{cpAddFiles([...e.target.files]);e.target.value=''}});
+    const row=h('div',{class:'cpx-add'},h('span',{class:'cpx-l'},'Add'),
+      h('button',{type:'button',class:'cp-chip',onclick:cpPickInvoice},icon('payments'),'Invoice'),
+      h('button',{type:'button',class:'cp-chip',onclick:()=>fin.click()},icon('camera'),'Photo or file'),
+      h('button',{type:'button',class:'cp-chip',onclick:e=>cpLinkBox(row)},icon('ext'),'Link'),
+      h('button',{type:'button',class:'cp-chip cp-emo-b',onclick:e=>cpEmojiBox(row),'aria-label':'Emoji'},h('span',{class:'cp-smile'},'☺'),'Emoji'),fin);
+    tools.after(row)}
+  const atts=CP.attach||[];if(atts.length){const row=document.querySelector('#overlay .cpx-add');
+    const chips=h('div',{class:'cp-att'},...atts.map((a,k)=>{const isImg=/^image\//.test(a.type);const th=isImg?h('span',{class:'cp-att-th'}):icon('file');if(isImg)try{th.style.backgroundImage='url('+URL.createObjectURL(a.blob||new Blob([Uint8Array.from(atob(a.b64),c=>c.charCodeAt(0))],{type:a.type}))+')'}catch{}
+      return h('div',{class:'cp-att-c'},th,h('span',null,h('b',null,a.name),h('small',null,kb(a.size||0))),h('button',{type:'button',class:'cp-att-x','aria-label':'Remove '+a.name,onclick:()=>{CP.attach.splice(k,1);cpRedraw()}},'×'))}));
+    row.after(chips)}
+}catch(e){console.error(e)}}})(drawComposer);
+/* the review step says what's attached */
+askConfirm=(function(prev){return function(){prev();try{const a=CP&&CP.attach||[];if(!a.length)return;const card=document.querySelector('#confirm-layer .confirm-card');const h2=card&&card.querySelector('h2');if(h2)h2.after(h('p',{class:'cf-att'},icon('file'),a.length===1?'With '+a[0].name:'With '+a.length+' attachments'))}catch{}}})(askConfirm);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.cpx-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}#overlay textarea#cp-body{height:clamp(170px,30vh,320px)!important;min-height:0!important}.cpx-l{font:600 9.5px var(--f-body);letter-spacing:.16em;text-transform:uppercase;color:#857A70;margin-right:2px}
+.cp-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #DCD7D0;background:#FAFAF9;border-radius:999px;padding:7px 12px;font:500 13px var(--f-body);color:#222120;cursor:pointer}.cp-chip svg{width:15px;height:15px}
+.cp-smile{font-size:16px;line-height:1}
+.cp-pop{display:flex;flex-direction:column;gap:8px;background:#F4F0EA;border-radius:16px;padding:12px;margin-top:8px}.cp-pop-r{display:flex;gap:8px}
+.cp-emo{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:4px}.cp-e{border:0;background:transparent;font-size:22px;padding:6px 0;border-radius:10px;cursor:pointer}.cp-e:hover{background:#ECE5DC}
+.cp-att{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.cp-att-c{display:flex;align-items:center;gap:8px;background:#F4F0EA;border-radius:14px;padding:6px 6px 6px 8px;max-width:100%}
+.cp-att-c span{display:flex;flex-direction:column;min-width:0}.cp-att-c b{font:500 12.5px var(--f-body);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cp-att-c small{font-size:11px;color:#857A70}
+.cp-att-th{width:38px;height:38px;border-radius:9px;background:#ECE5DC center/cover;flex:none}
+.cp-att-x{border:0;background:transparent;font-size:18px;color:#857A70;width:26px;height:26px;border-radius:50%;cursor:pointer}.cp-att-x:hover{background:#ECE5DC}
+.cpk-layer{position:fixed;inset:0;z-index:80;background:rgba(34,33,32,.25);display:flex;align-items:flex-end;justify-content:center}
+.cpk-card{background:#FAFAF9;border-radius:26px 26px 0 0;padding:18px 18px calc(env(safe-area-inset-bottom,0px) + 16px);width:100%;max-width:560px;max-height:70vh;overflow:auto;display:flex;flex-direction:column;gap:10px}
+@media (min-width:901px){.cpk-layer{align-items:center}.cpk-card{border-radius:24px}}
+.cpk-h{font:400 22px Lora,Georgia,serif}.cpk-list{display:flex;flex-direction:column}
+.cpk-row{display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:0;border-top:1px solid #ECE5DC;background:none;padding:11px 2px;text-align:left;cursor:pointer;color:#222120}.cpk-row b{font:500 14.5px var(--f-body)}.cpk-row small{color:#857A70;font-size:12.5px}.cpk-row.busy{opacity:.5}
+.cf-att{display:flex;align-items:center;gap:8px;font-size:13.5px;color:#6F6C67;margin:4px 0 0}
+html[data-look="night"] .cp-chip{background:#1E1C1B;border-color:#2E2B29;color:#FAFAF9}html[data-look="night"] .cp-pop,html[data-look="night"] .cp-att-c{background:#1E1C1B;color:#FAFAF9}html[data-look="night"] .cpk-card{background:#1E1C1B;color:#FAFAF9}html[data-look="night"] .cpk-row{color:#FAFAF9;border-color:#2E2B29}
 `}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
