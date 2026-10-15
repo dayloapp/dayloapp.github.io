@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610150849';
+const BUILD_ID='202610150904';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -4952,7 +4952,8 @@ function renderOnboarding(){
   if(ONB.step==='password'&&ONB.pick){
     const a=acct(ONB.pick);if(!a){ONB.step='start';return renderOnboarding()}
     return wrap(h('form',{class:'form onb-card',style:'text-align:center',onsubmit:async e=>{e.preventDefault();const pw=e.target.elements.pw.value;
-        if(a.hash&&(await hashPw(pw,a.salt))!==a.hash){ONB.err='That password doesn\'t match. Try again.';return renderMain()}
+        if(a.guest){if(a.hash&&(await hashPw(pw,a.salt))!==a.hash){ONB.err='That password doesn\'t match. Try again.';return renderMain()}}
+        else{ONB.busy=true;const r=await cloudAuth(a.email,pw,a);ONB.busy=false;if(r.err){ONB.err=r.err;return renderMain()}if(r.confirm){ONB.err='We sent you an email. Open it to confirm, then sign in.';return renderMain()}if(!r.offline&&!a.hash)await setPassword(a,pw)}
         await enterAccount(a.email);finishEntry()}},
       faceOf(a,'acct-face big'),h('h2',{class:'onb-h'},'Hi'+(a.name?', '+a.name.split(' ')[0]:'')),h('p',{class:'muted small'},a.email),
       pwInput('pw','o-pw','Your password','current-password'),errBox(),
@@ -4963,9 +4964,12 @@ function renderOnboarding(){
   if(ONB.step==='signin'){
     return wrap(h('form',{class:'form onb-card',onsubmit:async e=>{e.preventDefault();const f=e.target.elements;const email=f.oemail.value.trim().toLowerCase(),pw=f.pw.value;
         if(!isEmail(email)){ONB.err='Add the email you signed up with.';return keepVals(['o-email'],renderMain)}
-        const a=acct(email);
-        if(!a){ONB.err='There\'s no Daylo account with this email on this phone yet. Tap “Create an account” to make one. (Signing in from any phone comes with the next update.)';return keepVals(['o-email'],renderMain)}
-        if(a.hash&&(await hashPw(pw,a.salt))!==a.hash){ONB.err='That password doesn\'t match. Try again.';return keepVals(['o-email'],renderMain)}
+        if(!pw){ONB.err='Add your password.';return keepVals(['o-email'],renderMain)}
+        let a=acct(email);const r=await cloudAuth(email,pw,a);
+        if(r.err){ONB.err=r.err;return keepVals(['o-email'],renderMain)}
+        if(r.confirm){ONB.err='We sent you an email. Open it to confirm, then sign in.';return keepVals(['o-email'],renderMain)}
+        if(!a){a={email,name:'',avatarId:null,theme:null,createdAt:Date.now()};ACCTS.push(a);await saveAccts()}
+        if(!r.offline)await setPassword(a,pw);
         await enterAccount(email);finishEntry()}},
       h('h2',{class:'onb-h'},'Sign in with email'),h('p',{class:'small muted',style:'margin:-6px 0 4px'},'New here? ',h('button',{type:'button',class:'linkish',onclick:()=>step('create')},'Create an account')),
       field('Email',h('input',{class:'input',name:'oemail',id:'o-email',type:'email',autocomplete:'email',inputmode:'email',placeholder:'you@email.com'})),
@@ -5002,9 +5006,13 @@ function renderOnboarding(){
         const bad=t=>{ONB.err=t;keepVals(ids,renderMain)};
         if(!name)return bad('Add your name.');
         if(!isEmail(email))return bad('Add a valid email. It\'s how you sign in.');
-        if(acct(email))return bad('This email already has an account on this phone. Go back and sign in.');
+        if(acct(email))return bad('This email already has an account here. Go back and sign in.');
         if(pw.length<6)return bad('Make a password with at least 6 characters.');
         if(!ONB.role)return bad('Choose what you do, so Daylo fits you.');
+        const up=await cloudSignup(email,pw);
+        if(up.err==='exists')return bad('This email already has a Daylo account. Go back and sign in.');
+        if(up.err)return bad(up.err);
+        if(up.confirm)return bad('We sent you an email. Open it to confirm your address, then sign in.');
         const a={email,name,avatarId:null,theme:null,createdAt:Date.now()};ACCTS.push(a);await setPassword(a,pw);
         await enterAccount(email);
         if(f.examples.checked){loadDemo()}
@@ -5069,13 +5077,15 @@ function renderOnboarding(){
 }
 
 async function upgradeGuest(email,pw){const old=CUR;const a=acct(old);if(!a)return 'Something went wrong. Reload and try again.';
-  if(acct(email))return 'This email already has an account on this phone.';
+  if(acct(email))return 'This email already has an account here.';
+  const up=await cloudSignup(email,pw);if(up.err==='exists')return 'This email already has a Daylo account. Sign out and sign in with it.';if(up.err)return up.err;
   await persistNow();let st=null;try{st=await IDB.get('state:'+old)}catch{}
   const gm=/@(gmail|googlemail)\.com$/.test(email);
   S.settings={...S.settings,guest:false,accountEmail:email,gmailAddress:gm?email:(S.settings.gmailAddress||'')};
   a.email=email;a.guest=false;await setPassword(a,pw);
   CUR=email;try{await IDB.set('cur',email)}catch{}
-  await persistNow();try{await IDB.del('state:'+old)}catch{}return null}
+  await persistNow();try{await IDB.del('state:'+old)}catch{}
+  try{await cloudStart(email,false);cloudSoon()}catch{}return null}
 function guestSave(){const a=acct(CUR);if(!a||!a.guest)return null;
   return h('form',{class:'form',onsubmit:async e=>{e.preventDefault();const f=e.target.elements;const email=f.gemail.value.trim().toLowerCase(),pw=f.gpw.value;
       if(!isEmail(email)){toast('Add a valid email.');return}if(pw.length<6){toast('Use at least 6 characters for the password.');return}
@@ -5091,11 +5101,11 @@ function accountPanel(){
   const pwForm=h('form',{class:'row',onsubmit:async e=>{e.preventDefault();const v=e.target.elements.npw.value;if(v.length<6){toast('Use at least 6 characters.');return}await setPassword(a,v);e.target.reset();toast('Password saved');renderMain()}},
     h('input',{class:'input',name:'npw',type:'password',autocomplete:'new-password',placeholder:a.hash?'New password':'Make a password',style:'flex:1;min-width:160px'}),h('button',{class:'btn',type:'submit'},a.hash?'Change password':'Save password'));
   return h('section',{class:'panel'},h('div',{class:'panel-head'},h('h2',null,'Your account')),h('div',{class:'panel-body form'},
-    h('div',{class:'kv'},h('span',null,'Email'),h('span',null,CUR||'Not set'),h('span',null,'What you do'),h('span',null,(ROLES.find(r=>r[0]===role())||[])[1]||''),h('span',null,'Password'),h('span',null,a.hash?'Set':'Not set yet. Add one so only you can open your space.')),
+    h('div',{class:'kv'},h('span',null,'Email'),h('span',null,CUR||'Not set'),h('span',null,'What you do'),h('span',null,(ROLES.find(r=>r[0]===role())||[])[1]||''),h('span',null,'Password'),h('span',null,a.hash?'Set':'Not set yet. Add one so only you can open your space.'),h('span',null,'Sync'),h('span',null,syncLine())),
     pwForm,
     h('div',{class:'row'},h('button',{class:'btn',onclick:()=>signOut('Signed out. Your things are saved for next time.')},'Sign out'),
       h('button',{class:'btn ghost',onclick:e=>confirmDelete(e.currentTarget,async()=>{const em=CUR;try{await IDB.del('state:'+em)}catch{}ACCTS=ACCTS.filter(x=>x.email!==em);await saveAccts();CUR=null;try{await IDB.del('cur')}catch{}COLLS.forEach(k=>S[k]=[]);S.settings={};applyTheme();ONB={step:'start',role:'',err:'',pick:null,show:false};renderSide();renderMain();toast('Account deleted from this phone.')})},'Delete my account from this phone')),
-    h('p',{class:'small muted'},'Sign out lets a friend use Daylo on this phone with their own email. Your things stay saved under your email.')));
+    h('p',{class:'small muted'},'Sign in with the same email on your phone and laptop to see the same things on both.')));
 }
 
 const baseRenderMain=renderMain;
@@ -5143,6 +5153,155 @@ function guestBanner(){if(typeof CUR==='undefined'||!CUR||typeof acct!=='functio
 function demoBanner(){return h('div',{class:'notice info'},icon('spark'),h('div',{class:'grow'},h('p',null,h('b',null,'This is a demo with example data. '),'Try anything: add a '+V().one.toLowerCase()+', plan your week, write an email. Your changes stay in your browser only.'),
   h('div',{class:'row',style:'margin-top:10px;gap:6px'},h('span',{class:'small muted'},'Try it as:'),ROLES.map(([k,l])=>h('button',{class:'chip',style:role()===k?'background:var(--primary);color:var(--on-primary);border-color:var(--primary)':'',onclick:()=>{S.settings={...S.settings,role:k};persist();schedule()}},l))),
   h('div',{class:'row',style:'margin-top:8px'},h('button',{class:'btn sm primary',onclick:removeExamples},'Remove examples'),h('button',{class:'btn sm',onclick:()=>{loadDemo();toast('Example data restored')}},'Reset examples'))))}
+
+/* ---------- cloud: your account online, so phone and laptop show the same things ---------- */
+const SB_URL='https://epvfjtvvniflvxnubkxw.supabase.co';
+const SB_KEY='sb_publishable_HozhQGZOQw99SfKEt_cuCA_AXw_kst9';
+const CL={sess:null,email:null,snap:{},cursor:0,busy:false,again:false,timer:null,poll:null,imgq:[],tried:new Set(),state:'off',lastOk:0};
+const clKey=(k)=>'cloud'+k+':'+(CL.email||'');
+function clHash(s){let x=5381;for(let i=0;i<s.length;i++)x=((x<<5)+x+s.charCodeAt(i))|0;return (x>>>0).toString(36)+'.'+s.length}
+function clFp(rec){try{return clHash(JSON.stringify(rec))}catch{return 'x'}}
+function clMsg(j,fallback){const m=String((j&&(j.msg||j.error_description||j.message||j.error))||'');
+  if(/invalid login|invalid_grant|invalid credentials/i.test(m))return 'bad';
+  if(/already registered|already exists|user_already_exists/i.test(m))return 'exists';
+  if(/not confirmed/i.test(m))return 'confirm';
+  if(/password/i.test(m)&&/(short|least|weak)/i.test(m))return 'weak';
+  if(/rate|too many/i.test(m))return 'rate';
+  return fallback||'other'}
+async function sbAuth(path,body,token){
+  const r=await fetch(SB_URL+'/auth/v1/'+path,{method:body?'POST':'GET',headers:{apikey:SB_KEY,'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:body?JSON.stringify(body):undefined});
+  let j=null;try{j=await r.json()}catch{}return{ok:r.ok,status:r.status,j}}
+function clSess(j){return j&&j.access_token?{at:j.access_token,rt:j.refresh_token,exp:Date.now()+((j.expires_in||3600)*1000),uid:(j.user&&j.user.id)||'',email:(j.user&&j.user.email)||''}:null}
+async function clSaveSess(email,s){try{if(s)await IDB.set('cloud:'+email,s);else await IDB.del('cloud:'+email)}catch{}}
+/* sign in online; if the email is new online but known on this device, carry the account up */
+async function cloudAuth(email,pw,local){
+  let r;try{r=await sbAuth('token?grant_type=password',{email,password:pw})}catch(e){
+    if(local&&local.hash&&(await hashPw(pw,local.salt))===local.hash)return{offline:true};
+    return{err:'No internet right now. Try again when you\'re online.'}}
+  if(r.ok){const s=clSess(r.j);await clSaveSess(email,s);return{ok:true}}
+  const why=clMsg(r.j,'bad');
+  if(why==='confirm')return{err:'Open the email from Daylo to confirm your address, then sign in.'};
+  if(why==='rate')return{err:'Too many tries. Wait a minute and try again.'};
+  if(local&&!local.guest&&(!local.hash||(await hashPw(pw,local.salt))===local.hash)){
+    if(pw.length<6)return{err:'Use at least 6 characters for your password.'};
+    const u=await cloudSignup(email,pw);
+    if(u.err==='exists')return{err:'That password doesn\'t match your Daylo account. Try the password you used on your other phone or laptop.'};
+    return u}
+  return{err:local?'That password doesn\'t match. Try again.':'That email and password don\'t match a Daylo account. Check them, or create an account.'}}
+async function cloudSignup(email,pw){
+  let r;try{r=await sbAuth('signup',{email,password:pw})}catch{return{err:'No internet right now. Try again when you\'re online.'}}
+  if(r.ok){const s=clSess(r.j);if(s){await clSaveSess(email,s);return{ok:true}}
+    if(r.j&&Array.isArray(r.j.identities)&&!r.j.identities.length)return{err:'exists'};
+    return{confirm:true}}
+  const why=clMsg(r.j);
+  if(why==='exists')return{err:'exists'};
+  if(why==='weak')return{err:'Make a longer password, at least 6 characters.'};
+  if(why==='rate')return{err:'Too many tries. Wait a minute and try again.'};
+  return{err:'Couldn\'t create your account online. Try again in a moment.'}}
+async function clToken(){const s=CL.sess;if(!s)return null;
+  if(s.exp-60000>Date.now())return s.at;
+  try{const r=await sbAuth('token?grant_type=refresh_token',{refresh_token:s.rt});
+    if(r.ok){CL.sess=clSess(r.j);await clSaveSess(CL.email,CL.sess);return CL.sess.at}
+    if(r.status===400||r.status===401){CL.sess=null;await clSaveSess(CL.email,null);CL.state='signedout';clRedraw()}}catch{}
+  return null}
+async function sbFetch(path,opt={}){const t=await clToken();if(!t)throw new Error('nosession');
+  const r=await fetch(SB_URL+path,{...opt,headers:{apikey:SB_KEY,Authorization:'Bearer '+t,...(opt.headers||{})}});
+  if(r.status===401){CL.sess.exp=0;const t2=await clToken();if(!t2)throw new Error('nosession');
+    return fetch(SB_URL+path,{...opt,headers:{apikey:SB_KEY,Authorization:'Bearer '+t2,...(opt.headers||{})}})}
+  return r}
+const CL_SET='_settings';
+function clLocal(){const m=new Map();COLLS.forEach(c=>(S[c]||[]).forEach(r=>{if(r&&r.id!=null)m.set(c+'|'+r.id,[c,r])}));m.set(CL_SET+'|main',[CL_SET,S.settings||{}]);return m}
+async function clLoadMeta(){try{CL.snap=(await IDB.get(clKey('snap')))||{};CL.cursor=(await IDB.get(clKey('cur')))||0;CL.imgq=(await IDB.get(clKey('imgq')))||[]}catch{CL.snap={};CL.cursor=0;CL.imgq=[]}}
+async function clSaveMeta(){try{await IDB.set(clKey('snap'),CL.snap);await IDB.set(clKey('cur'),CL.cursor);await IDB.set(clKey('imgq'),CL.imgq)}catch{}}
+async function clPush(){
+  const m=clLocal(),rows=[],now=Date.now();
+  for(const[k,[c,r]]of m){const fp=clFp(r);if(CL.snap[k]===fp)continue;
+    const ua=(+r.updatedAt||0)>((CL.snap[k+'@'])||0)?+r.updatedAt:now;
+    rows.push({k,fp,ua,row:{user_id:CL.sess.uid,coll:c,id:String(r.id),data:r,deleted:false,updated_at:ua}})}
+  for(const k of Object.keys(CL.snap)){if(k.endsWith('@')||m.has(k))continue;const i=k.indexOf('|');
+    rows.push({k,fp:null,ua:now,row:{user_id:CL.sess.uid,coll:k.slice(0,i),id:k.slice(i+1),data:null,deleted:true,updated_at:now}})}
+  let batch=[],size=0;
+  const send=async()=>{if(!batch.length)return;
+    const r=await sbFetch('/rest/v1/items?on_conflict=user_id,coll,id',{method:'POST',headers:{'Content-Type':'application/json',Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(batch.map(b=>b.row))});
+    if(!r.ok)throw new Error('push '+r.status);
+    for(const b of batch){if(b.fp){CL.snap[b.k]=b.fp;CL.snap[b.k+'@']=b.ua}else{delete CL.snap[b.k];delete CL.snap[b.k+'@']}}
+    batch=[];size=0};
+  for(const b of rows){const n=JSON.stringify(b.row).length;if(size+n>600000)await send();batch.push(b);size+=n}
+  await send();return rows.length}
+async function clPull(){let changed=0;
+  for(let guard=0;guard<50;guard++){
+    const r=await sbFetch('/rest/v1/items?select=coll,id,data,deleted,updated_at,srv&srv=gt.'+CL.cursor+'&order=srv.asc&limit=500');
+    if(!r.ok)throw new Error('pull '+r.status);
+    const rows=await r.json();if(!rows.length)break;
+    for(const x of rows){CL.cursor=Math.max(CL.cursor,+x.srv||0);changed+=clMerge(x)}
+    if(rows.length<500)break}
+  return changed}
+function clMerge(x){const k=x.coll+'|'+x.id,ua=+x.updated_at||0;
+  if(x.coll===CL_SET){const loc=S.settings||{};
+    if(x.deleted||!x.data)return 0;
+    if((+loc.updatedAt||0)>ua)return 0;
+    if(clFp(loc)===clFp({...loc,...x.data})){CL.snap[k]=clFp(loc);CL.snap[k+'@']=ua;return 0}
+    S.settings={...loc,...x.data};CL.snap[k]=clFp(S.settings);CL.snap[k+'@']=ua;return 1}
+  if(!COLLS.includes(x.coll))return 0;
+  const arr=S[x.coll]||(S[x.coll]=[]);const i=arr.findIndex(r=>String(r.id)===String(x.id));const loc=i>=0?arr[i]:null;
+  if(x.deleted){if(!loc){delete CL.snap[k];delete CL.snap[k+'@'];return 0}
+    if((+loc.updatedAt||0)>ua)return 0;arr.splice(i,1);delete CL.snap[k];delete CL.snap[k+'@'];return 1}
+  if(loc&&(+loc.updatedAt||0)>ua)return 0;
+  if(loc&&clFp(loc)===clFp(x.data)){CL.snap[k]=clFp(loc);CL.snap[k+'@']=ua;return 0}
+  if(i>=0)arr[i]=x.data;else arr.push(x.data);CL.snap[k]=clFp(x.data);CL.snap[k+'@']=ua;clWantImgs(x.data);return 1}
+/* photos */
+function clImgIds(o){const out=new Set();try{(JSON.stringify(o).match(/img[a-z0-9]{6,}/g)||[]).forEach(i=>out.add(i))}catch{}return out}
+function clWantImgs(o){clImgIds(o).forEach(id=>{if(!S.imgs[id])clGetImg(id)})}
+async function clGetImg(id){if(!CL.sess||CL.tried.has(id))return;CL.tried.add(id);
+  try{const b=await IDB.get('img:'+id);if(b){S.imgs[id]=URL.createObjectURL(b);clRedraw();return}}catch{}
+  try{const r=await sbFetch('/storage/v1/object/authenticated/images/'+CL.sess.uid+'/'+id);if(!r.ok)return;
+    const b=await r.blob();try{await IDB.set('img:'+id,b)}catch{}S.imgs[id]=URL.createObjectURL(b);clRedraw()}catch{CL.tried.delete(id)}}
+async function clPutImgs(){const left=[];
+  for(const id of CL.imgq){let b=null;try{b=await IDB.get('img:'+id)}catch{}if(!b)continue;
+    try{const r=await sbFetch('/storage/v1/object/images/'+CL.sess.uid+'/'+id,{method:'POST',headers:{'Content-Type':b.type||'image/jpeg','x-upsert':'true'},body:b});
+      if(!r.ok&&r.status!==409&&r.status!==400)left.push(id)}catch{left.push(id)}}
+  CL.imgq=left}
+function clQueueAllImgs(){const ids=new Set();clLocal().forEach(([c,r])=>clImgIds(r).forEach(i=>ids.add(i)));CL.imgq=[...new Set([...CL.imgq,...ids])]}
+let clDrawT=null;
+function clRedraw(){clearTimeout(clDrawT);clDrawT=setTimeout(()=>{
+  const a=document.activeElement;if(a&&(a.isContentEditable||/INPUT|TEXTAREA|SELECT/.test(a.tagName))){clRedraw();return}
+  const ov=document.getElementById('overlay');if(ov&&ov.children.length){clRedraw();return}
+  try{applyTheme();renderSide();renderMain()}catch(e){console.error(e)}},400)}
+async function cloudSync(){if(!CL.sess||!CL.email)return;
+  if(CL.busy){CL.again=true;return}CL.busy=true;CL.state='syncing';
+  try{const n=await clPull();if(n){try{await IDB.set(stateKey(),clean({settings:S.settings,...Object.fromEntries(COLLS.map(c=>[c,S[c]]))}))}catch{}schedule&&schedule();clRedraw()}
+    await clPush();await clPutImgs();await clSaveMeta();CL.state='ok';CL.lastOk=Date.now()}
+  catch(e){if(String(e.message)==='nosession')CL.state='signedout';else CL.state='offline';console.warn('sync',e)}
+  finally{CL.busy=false;if(CL.again){CL.again=false;setTimeout(cloudSync,300)}}}
+function cloudSoon(){if(!CL.sess)return;clearTimeout(CL.timer);CL.timer=setTimeout(cloudSync,1500)}
+async function cloudStart(email,wait){CL.email=email;CL.sess=null;CL.tried=new Set();
+  try{CL.sess=(await IDB.get('cloud:'+email))||null}catch{}
+  if(!CL.sess){CL.state='off';return false}
+  await clLoadMeta();
+  if(!CL.cursor&&!Object.keys(CL.snap).length)clQueueAllImgs();
+  clearInterval(CL.poll);CL.poll=setInterval(()=>{if(document.visibilityState==='visible')cloudSync()},30000);
+  const p=cloudSync();if(wait)await Promise.race([p,new Promise(r=>setTimeout(r,9000))]);
+  clWantImgs({s:S.settings});return true}
+function cloudStop(){clearInterval(CL.poll);clearTimeout(CL.timer);CL.sess=null;CL.email=null;CL.state='off'}
+function cloudOn(){return !!(CL.sess&&CL.email&&CL.email===CUR)}
+addEventListener('online',()=>cloudSoon());
+addEventListener('pagehide',()=>{if(CL.sess)cloudSync()});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')cloudSoon();else if(CL.sess)cloudSync()});
+
+/* hooks into saving and accounts */
+{const _p=persistNow;persistNow=async function(){const r=await _p.apply(this,arguments);if(cloudOn())cloudSoon();return r}}
+{const _u=localAssets.upload.bind(localAssets);localAssets.upload=async function(f){const r=await _u(f);if(cloudOn()&&r&&r.id){CL.imgq.push(r.id);clSaveMeta();cloudSoon()}return r}}
+{const _b=blobUrl;blobUrl=function(id){const u=_b(id);if(!u&&id&&cloudOn())clGetImg(id);return u}}
+{const _e=enterAccount;enterAccount=async function(email){await _e(email);
+  const empty=!S.settings.onboarded&&!COLLS.some(c=>(S[c]||[]).length);
+  await cloudStart(email,empty);
+  if(empty&&S.settings.onboarded){const a=acct(email);if(a&&S.settings.name&&!a.name){a.name=S.settings.name;saveAccts()}}}}
+{const _s=signOut;signOut=async function(msg){if(cloudOn()){try{await persistNow();await Promise.race([cloudSync(),new Promise(r=>setTimeout(r,4000))])}catch{}await clSaveSess(CL.email,null)}cloudStop();return _s(msg)}}
+{const _sp=setPassword;setPassword=async function(a,pw){await _sp(a,pw);
+  if(cloudOn()&&a.email===CUR){try{const t=await clToken();if(t)await fetch(SB_URL+'/auth/v1/user',{method:'PUT',headers:{apikey:SB_KEY,Authorization:'Bearer '+t,'Content-Type':'application/json'},body:JSON.stringify({password:pw})})}catch{}}}}
+function syncLine(){const a=acct(CUR)||{};if(a.guest)return 'Only on this device. Add your email to keep it.';
+  if(cloudOn())return CL.state==='offline'?'On · will catch up when you\'re online':'On · phone and laptop stay the same';
+  return 'Off. Sign out, then sign in again with your password to turn it on.'}
 
 renderAll();
 (async()=>{
