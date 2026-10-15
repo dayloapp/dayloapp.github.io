@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610150812';
+const BUILD_ID='202610150815';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -4703,6 +4703,9 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 document.head.append(Object.assign(document.createElement('style'),{textContent:`.dk-link{border:0;background:none;font:600 11px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:#857A70;cursor:pointer;padding:0}`}));
 /* money shows "$450", never "US$450", on any phone language */
 (function(){const NF=Intl.NumberFormat;const W=function(l,o){if(o&&o.style==='currency'&&!o.currencyDisplay)o=Object.assign({},o,{currencyDisplay:'narrowSymbol'});try{return new NF(l,o)}catch(e){return new NF(l,Object.assign({},o,{currencyDisplay:'symbol'}))}};W.prototype=NF.prototype;W.supportedLocalesOf=NF.supportedLocalesOf;Intl.NumberFormat=W})();
+/* Today = only what matters: no morning brief, no voice, no nudge list */
+briefCard=function(){return null};
+pageToday=(function(prev){return function(){const el=prev();try{el.querySelectorAll('.mb').forEach(n=>n.remove())}catch{}return el}})(pageToday);
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
