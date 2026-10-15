@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610150836';
+const BUILD_ID='202610150843';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -4795,6 +4795,16 @@ pageToday=(function(prev){return function(){const el=prev();try{
   if(window.innerWidth<1000){const anchor=el.querySelector('.nx')||el.querySelector('.cv');if(anchor)anchor.after(h('button',{class:'add-sm',onclick:addSheet},'+ Add something'))}
 }catch(e){console.error(e)}return el}})(pageToday);
 document.head.append(Object.assign(document.createElement('style'),{textContent:`.add-sm{align-self:flex-start;border:0;background:none;padding:4px 8px;font:600 14.5px var(--f-body);color:#141312;cursor:pointer}`}));
+
+/* No duplicates: ☰ = Packages · Follow-ups · Settings. Money lives behind the money number. "+ Add task" only. */
+moreMenu=function(){
+  const pk=(S.settings.packages||[]).filter(p=>p.status!=='Delivered').length;const fu=(typeof radarAll==='function'?radarAll():[]).length;
+  const items=[['inbox','Packages',pk?pk+' on the way':null,()=>go('packages')],['send','Follow-ups',fu?String(fu):null,()=>go('followups')],['settings','Settings',null,()=>go('settings')]];
+  if(S.settings.demo&&typeof removeExamples==='function')items.push(['x','Remove the example data',null,()=>{removeExamples()}]);
+  openSheet('Menu',items)};
+addSheet=function(){openTask({type:'Other',due:ymd(),done:false})};
+pageToday=(function(prev){return function(){const el=prev();try{el.querySelectorAll('.add-sm').forEach(b=>b.textContent='+ Add task')}catch{}return el}})(pageToday);
+try{for(let i=NAV.length-1;i>=0;i--){if(NAV[i][0]==='campaigns')NAV.splice(i,1)}}catch{}
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
