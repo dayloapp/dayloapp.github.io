@@ -2661,7 +2661,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610151805';
+const BUILD_ID='202610151857';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -6341,6 +6341,54 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .cpk-row{display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:0;border-top:1px solid #ECE5DC;background:none;padding:11px 2px;text-align:left;cursor:pointer;color:#222120}.cpk-row b{font:500 14.5px var(--f-body)}.cpk-row small{color:#857A70;font-size:12.5px}.cpk-row.busy{opacity:.5}
 .cf-att{display:flex;align-items:center;gap:8px;font-size:13.5px;color:#6F6C67;margin:4px 0 0}
 html[data-look="night"] .cp-chip{background:#1E1C1B;border-color:#2E2B29;color:#FAFAF9}html[data-look="night"] .cp-pop,html[data-look="night"] .cp-att-c{background:#1E1C1B;color:#FAFAF9}html[data-look="night"] .cpk-card{background:#1E1C1B;color:#FAFAF9}html[data-look="night"] .cpk-row{color:#FAFAF9;border-color:#2E2B29}
+`}));
+
+/* ===================== Sent and Gmail drafts in Daylo; what you send from Gmail updates Daylo too ===================== */
+async function loadSent(force){if(!tokOk()){checkInbox();return}
+  if(IB.sentBusy)return;IB.sentBusy=true;if(page==='inbox'&&IB.mode==='sent')renderMain();
+  try{const r=await gget('messages',{q:'in:sent -in:chats newer_than:120d',maxResults:60});const seen=new Set();const ids=(r.messages||[]).filter(m=>{if(seen.has(m.threadId))return false;seen.add(m.threadId);return true}).slice(0,40);
+    const out=[];let i=0;const me=(hintEmail()||'').toLowerCase();
+    const w=async()=>{while(i<ids.length){const x=ids[i++];try{const t=await gget('threads/'+x.threadId,{format:'metadata',metadataHeaders:['From','To','Subject','Date']});const ms=(t.messages||[]);
+      const mine=ms.filter(m=>(m.labelIds||[]).includes('SENT'));const last=ms[ms.length-1];const lastMine=mine[mine.length-1]||last;
+      const to=parseAddr((hdr(lastMine,'To')||'').split(',')[0]);const lastIsMine=(last.labelIds||[]).includes('SENT');
+      out.push({threadId:t.id,toName:to.name||to.email||'(no one)',email:to.email,subject:hdr(lastMine,'Subject')||'(no subject)',at:Number(lastMine.internalDate)||Date.now(),replied:!lastIsMine,repliedAt:lastIsMine?null:Number(last.internalDate),count:ms.length})}catch(e){if(e.expired)break}}};
+    await Promise.all(Array.from({length:6},w));out.sort((a,b)=>b.at-a.at);IB.sent=out;IB.sentAt=Date.now();
+    await sentSync(out)}catch(e){toast(e.copy||'Couldn’t load sent emails.')}
+  finally{IB.sentBusy=false;if(page==='inbox')renderMain()}}
+/* something you sent from Gmail closes the matching "Reply" to-do and marks the deal as answered */
+async function sentSync(list){try{let n=0;for(const s of list){const tk=(S.tasks||[]).filter(x=>x.gmailThread===s.threadId&&!x.done&&/Reply/i.test(x.type||'')&&(x.createdAt||0)<s.at);
+    for(const t of tk){await save('tasks',{...t,done:true,doneAt:s.at,notes:(t.notes?t.notes+' ':'')+'Answered from Gmail.'});n++}}
+  if(n){toast(n===1?'You answered from Gmail, so Daylo ticked it off.':'You answered '+n+' emails from Gmail. Ticked off in Daylo.');try{renderMain()}catch{}}}catch(e){console.error(e)}}
+async function quickSentCheck(){try{if(!tokOk())return;const r=await gget('messages',{q:'in:sent newer_than:2d',maxResults:5});const top=(r.messages||[]).map(m=>m.id).join(',');
+  if(top&&top!==S.settings.gmailSentTop){const first=!S.settings.gmailSentTop;await saveSettings({gmailSentTop:top});if(!first||!IB.sent)await loadSent(true)}}catch{}}
+setInterval(()=>{if(!document.hidden)quickSentCheck()},45000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(quickSentCheck,1500)});
+/* Gmail drafts (written in Gmail itself) show up too */
+async function loadGmailDrafts(){if(!tokOk())return;try{const r=await gget('drafts',{maxResults:30});const ds=r.drafts||[];const have=new Set(draftsList().map(d=>d.gid).filter(Boolean));
+  const out=[];for(const d of ds.slice(0,25)){if(have.has(d.id))continue;try{const j=await gget('drafts/'+d.id,{format:'full'});const m=j.message;const to=hdr(m,'To');
+    out.push({gid:d.id,gmailOnly:true,to,subject:hdr(m,'Subject'),body:bodyOf(m.payload),at:Number(m.internalDate)||Date.now(),threadId:m.threadId})}catch{}}
+  IB.gdrafts=out;if(page==='inbox'&&IB.mode==='drafts')renderMain()}catch(e){console.error(e)}}
+gmailInboxPanel=(function(prev){return function(){const el=prev();try{const tabs=el.querySelector('.sh-tabs');if(!tabs)return el;el.querySelectorAll('.sh-search .btn').forEach(b=>b.remove());
+  const sentB=h('button',{class:IB.mode==='sent'?'on':'',onclick:()=>{IB.mode='sent';IB.res=null;renderMain();if(!IB.sent||Date.now()-(IB.sentAt||0)>60000)loadSent()}},'Sent');
+  const spamB=[...tabs.children].find(b=>b.textContent==='Spam');tabs.insertBefore(sentB,spamB||null);
+  if(IB.mode==='sent'){tabs.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===sentB));[...el.children].forEach(c=>{if(c!==tabs&&!c.classList.contains('sh-search'))c.remove()});
+    const list=IB.sent||[];const now=new Date();const t0=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();
+    const when=ms=>{const d=new Date(ms);return ms>=t0?d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):d.toLocaleDateString(undefined,{month:'short',day:'numeric'})};
+    const waiting=list.filter(s=>!s.replied&&Date.now()-s.at>2*864e5&&Date.now()-s.at<30*864e5);
+    el.append(h('div',{class:'sh-head'},h('span',{class:'sh-cap'},IB.sentBusy?'Loading…':list.length+' sent'+(waiting.length?' · '+waiting.length+' waiting for a reply':'')),h('button',{class:'btn sm ghost','aria-label':'Refresh',onclick:()=>loadSent(true)},icon('refresh'))),
+      list.length?h('div',{class:'sh-list'},...list.map(s=>h('button',{class:'sh-row',onclick:()=>openMail(s.threadId)},h('span',{class:'sh-top'},h('b',{class:'sh-name'},'To: '+(guessBrand({name:s.toName,email:s.email})||s.toName)),h('span',{class:'sh-time'},when(s.at))),
+        h('span',{class:'sh-sub sn-sub'},h('span',{class:'sn-s'},(s.subject||'').replace(/^(re|fwd?):\s*/i,'')),h('span',{class:'sn-st'+(s.replied?' ok':'')},s.replied?'Replied':(Date.now()-s.at>2*864e5?'No reply yet':'Sent')))))):
+        IB.sentBusy?h('p',{class:'sh-cap',style:'padding:18px 2px'},'Opening sent…'):emptyState('Nothing sent yet','Emails you send from Daylo or Gmail show up here.'))}
+  if(IB.mode==='drafts'){const g=IB.gdrafts||[];if(!IB.gdraftsAsked){IB.gdraftsAsked=true;loadGmailDrafts()}
+    if(g.length){const empty=el.querySelector('.empty, .empty-state');if(empty)empty.remove();
+      el.append(h('div',{class:'sh-g'},'From Gmail'),h('div',{class:'sh-list'},...g.map(d=>h('button',{class:'sh-row',onclick:()=>{openComposer({to:(d.to||'').replace(/.*<([^>]+)>.*/,'$1'),subject:d.subject,body:d.body});if(CP){CP.gmail=d.threadId?{threadId:d.threadId}:null;CP.gmailDraftId=d.gid}}},h('span',{class:'sh-top'},h('b',{class:'sh-name'},'To: '+(d.to||'(no one yet)').replace(/<[^>]+>/,'').trim()),h('span',{class:'sh-time'},new Date(d.at).toLocaleDateString(undefined,{month:'short',day:'numeric'}))),h('span',{class:'sh-sub'},(d.subject||'(no subject)')+' — '+(d.body||'').replace(/\s+/g,' ').slice(0,60))))))}}
+}catch(e){console.error(e)}return el}})(gmailInboxPanel);
+/* a Gmail draft you finish in Daylo is removed from Gmail drafts once sent */
+drawComposer=(function(prev){return function(){prev();try{if(CP&&CP.step==='done'&&CP.gmailDraftId){gmailDraftDelete(CP.gmailDraftId);IB.gdrafts=(IB.gdrafts||[]).filter(d=>d.gid!==CP.gmailDraftId);CP.gmailDraftId=null}}catch{}}})(drawComposer);
+/* opening the inbox also refreshes sent in the background, so Gmail replies tick things off */
+loadInbox30=(function(prev){return async function(force){await prev(force);try{if(tokOk()&&(force||!IB.sentAt||Date.now()-IB.sentAt>300000))loadSent()}catch{}}})(loadInbox30);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.sn-sub{display:flex;gap:8px;align-items:center}.sn-s{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sn-st{flex:none;font:500 11px var(--f-body);padding:2px 9px;border-radius:999px;background:#ECE5DC;color:#6F6C67}.sn-st.ok{background:#222120;color:#FAFAF9}
 `}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
