@@ -2190,7 +2190,8 @@ function notifSetup(){const st=notifState();const on=st==='granted'&&S.settings.
 
 /* ---------- gmail: read the person's inbox on their own device and suggest what to add ---------- */
 const GOOGLE_CLIENT_ID='696829738580-90g050if0p3qkklt6rsvql7c0a7fj20k.apps.googleusercontent.com';   // filled in after the Google Cloud setup
-const GSCOPE='https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send';
+const GSCOPE='https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar.readonly';
+let GCALOK=false;
 let GSEND=false;
 let GTOK=null,GTOKexp=0,gisP=null;
 const GMS={busy:false};
@@ -2207,12 +2208,12 @@ function lsSet(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(
   try{history.replaceState(null,'',location.pathname)}catch{}
   if(q.get('error')){GMS.backErr=q.get('error')==='access_denied'?'Gmail wasn’t allowed, so nothing was read.':'Google didn’t allow it this time. Try again.';return}
   if(!want||q.get('state')!==want.state){return}
-  GSEND=/gmail\.send/.test(q.get('scope')||'');
+  GSEND=/gmail\.send/.test(q.get('scope')||'');GCALOK=/calendar/.test(q.get('scope')||'');
   if(!/gmail\.readonly/.test(q.get('scope')||'')){GMS.backErr='Please tick the box that lets Daylo read your email, then try again.';return}
   GTOK=q.get('access_token');GTOKexp=Date.now()+(Number(q.get('expires_in'))||3600)*1000;
-  lsSet(GKEY,{t:GTOK,exp:GTOKexp,send:GSEND});GMS.autoFor=want.cur||'';lsSet('daylo-gstate',null);
+  lsSet(GKEY,{t:GTOK,exp:GTOKexp,send:GSEND,cal:GCALOK});GMS.autoFor=want.cur||'';lsSet('daylo-gstate',null);
 })();
-(function restorePass(){if(GTOK)return;const p=lsGet(GKEY);if(p&&p.t&&Date.now()<p.exp-60000){GTOK=p.t;GTOKexp=p.exp;GSEND=!!p.send}})();
+(function restorePass(){if(GTOK)return;const p=lsGet(GKEY);if(p&&p.t&&Date.now()<p.exp-60000){GTOK=p.t;GTOKexp=p.exp;GSEND=!!p.send;GCALOK=!!p.cal}})();
 function gToken(){
   if(GTOK&&Date.now()<GTOKexp-60000)return Promise.resolve(GTOK);
   if(!gmailReady())return Promise.reject({copy:'Gmail is almost ready. Try again soon.'});
@@ -2474,7 +2475,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 
 (function afterGoogle(){let n=0;const t=setInterval(()=>{n++;
   if(GMS.backErr&&typeof toast==='function'&&S.booted){clearInterval(t);toast(GMS.backErr);GMS.backErr='';return}
-  if(GMS.autoFor!==undefined&&S.booted&&(!ACCOUNTS_ON||CUR)&&S.settings.onboarded){clearInterval(t);const f=GMS.autoFor;GMS.autoFor=undefined;if(f&&f!==CUR)return;const nx=lsGet('daylo-next');lsSet('daylo-next',null);if(nx&&nx.draft){openComposer(nx.draft);if(CP)CP.gmail=nx.draft.gmail||null;toast('Connected. Check it and tap Send.')}else if(nx&&nx.open)openMail(nx.open);else checkGmail();return}
+  if(GMS.autoFor!==undefined&&S.booted&&(!ACCOUNTS_ON||CUR)&&S.settings.onboarded){clearInterval(t);const f=GMS.autoFor;GMS.autoFor=undefined;if(f&&f!==CUR)return;const nx=lsGet('daylo-next');lsSet('daylo-next',null);if(nx&&nx.draft){openComposer(nx.draft);if(CP)CP.gmail=nx.draft.gmail||null;toast('Connected. Check it and tap Send.')}else if(nx&&nx.open)openMail(nx.open);else if(nx&&nx.cal){go('schedule');setTimeout(()=>loadCalendar(true),300)}else checkGmail();return}
   if(n>60)clearInterval(t)},500)})();
 
 /* ---------- read and reply to emails inside Daylo ---------- */
@@ -2644,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610142034';
+const BUILD_ID='202610142053';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -3471,16 +3472,16 @@ document.addEventListener('click',()=>{},true);
 
 /* ---------- Today = H3 cocoa cover with a daily headline that reacts to your day ---------- */
 const HL={
- late:[['{late} thing{s} running late.','Fashionably, of course — but let’s not make it a whole personality.'],['Something’s late.','We won’t tell anyone. Today. Tomorrow we make no promises.'],['{late} late.','Deadlines are more of a vibe, right? Let’s catch up before lunch.']],
- money:[['{sum} is on its way.','Act surprised, then go treat yourself to something small and smug.'],['Someone owes you {sum}.','We’re not saying it’s personal. We’re just saying we noticed.'],['{sum} waiting for you.','Patience looks good on you. A polite follow-up looks even better.'],['{sum} pending.','Manifesting faster payments, and a brand that pays on time.']],
- mails:[['{mail} emails.','Bold of them to assume you’re free. Start with the ones that pay.'],['{mail} emails waiting.','Only three of them matter. We’ll help you find those first.'],['Your inbox has','opinions today. You don’t have to agree with all of them.'],['{mail} emails.','Coffee first. Obviously. Then the brands, then the rest.']],
- busy:[['A busy {day}.','You’ve got this. Mostly. We’ll keep the boring part organized.'],['{todo} things today.','Hydrate between them, and maybe don’t schedule a fourth coffee.'],['Full day ahead.','Main-character schedule. Supporting cast: your calendar and us.'],['{todo} to do.','Pace yourself, icon. One thing at a time still counts.']],
- free:[['Nothing due today.','Suspicious. Enjoy it before a brand slides into your inbox.'],['Your schedule is empty.','Enjoy it before brands find out. Or pitch one. Your call.'],['A free {day}.','Plan something. Or don’t. Rest is part of the job too.'],['Zero tasks.','Is this what peace feels like? Take a screenshot, it’s rare.']],
- deliver:[['{deliver} deal{s2} to deliver.','The content won’t shoot itself. Good light is waiting somewhere.'],['Brands are waiting.','In the nicest way. Your next post is the one they’ll remember.']],
- mon:[['Monday.','Let’s pretend we’re ready, then actually get ready. In that order.'],['New week.','Same iconic you. Fresh calendar, old coffee habit.']],
- fri:[['Friday.','The inbox can wait. Probably. Let’s close the week like a pro.'],['It’s Friday.','Reply now, rest later. Weekend-you will say thank you.']],
- wknd:[['Weekend mode.','Mostly. Only answer the emails that make you money.'],['It’s the weekend.','Only answer the good emails. The rest can wait for Monday-you.']],
- any:[['{day}:','Monday’s more organized cousin. Let’s live up to the family name.'],['Today’s plan:','look good, get paid, and reply before anyone has to follow up.'],['Hello, {day}.','Let’s make it count, then make it look effortless.']]
+ late:[['{late} thing{s} running late.','Fashionably, of course.'],['Something’s late.','We won’t tell. Today.'],['{late} late.','Deadlines are a vibe, right?']],
+ money:[['{sum} is on its way.','Act surprised.'],['Someone owes you {sum}.','Not that we’re counting.'],['{sum} waiting for you.','Patience looks good on you.'],['{sum} pending.','Manifesting faster payments.']],
+ mails:[['{mail} emails.','Bold of them to assume you’re free.'],['{mail} emails waiting.','Three of them matter.'],['Your inbox has','opinions today.'],['{mail} emails.','Coffee first. Obviously.']],
+ busy:[['A busy {day}.','You’ve got this. Mostly.'],['{todo} things today.','Hydrate between them.'],['Full day ahead.','Main-character schedule.'],['{todo} to do.','Pace yourself, icon.']],
+ free:[['Nothing due today.','Suspicious.'],['Empty schedule.','Enjoy it before brands find out.'],['A free {day}.','Plan something. Or don’t.'],['Zero tasks.','Is this what peace feels like?']],
+ deliver:[['{deliver} deal{s2} to deliver.','The content won’t shoot itself.'],['Brands are waiting.','In the nicest way.']],
+ mon:[['Monday.','Let’s pretend we’re ready.'],['New week.','Same iconic you.']],
+ fri:[['Friday.','The inbox can wait. Probably.'],['It’s Friday.','Reply now, rest later.']],
+ wknd:[['Weekend mode.','Mostly.'],['It’s the weekend.','Only the good emails.']],
+ any:[['{day}:','Monday’s more organized cousin.'],['Today’s plan:','look good, get paid.'],['Hello, {day}.','Let’s make it count.']]
 };
 function dailyHeadline(d){
   const pool=[];const add=k=>HL[k].forEach(x=>pool.push(x));
@@ -3517,7 +3518,7 @@ function pageToday(){
       h('div',{class:'cv-nums'},
         num(String(todo),'To do',()=>{S.dayPick=t;S.schedView='day';go('schedule')}),
         num(S.settings.gmailAt||mailAll.length?String(mail):'—','Emails',()=>S.settings.gmailAt?go('inbox'):checkGmail()),
-        num(sumTxt||'$0','Owed',()=>go('payments'))),
+        num(sumTxt||'$0','Owed',()=>{S.campStages=null;go('campaigns')})),
       h('button',{class:'cv-go',onclick:()=>{S.dayPick=t;S.schedView='day';go('schedule')}},h('span',null,'Open my day'),h('span',null,'→'))),
     empty&&typeof welcomeCard==='function'?welcomeCard():null,
     typeof guestBanner==='function'?guestBanner():null,
@@ -3527,7 +3528,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .cv-page{display:flex;flex-direction:column;gap:16px}
 .cv{--cv:#ECE5DC;background:var(--cv);color:#141312;border-radius:30px;padding:26px 24px 22px;min-height:calc(100dvh - 230px);display:flex;flex-direction:column;gap:14px}
 .cv-date{font:500 11px var(--f-body);letter-spacing:.2em;text-transform:uppercase;color:#857A70}
-.cv-hl{color:#141312!important;font:400 40px/1.08 Lora,Georgia,serif;letter-spacing:-.025em;margin:4px 0 0;cursor:pointer;text-wrap:balance;-webkit-tap-highlight-color:transparent}
+.cv-hl{color:#141312!important;font:400 42px/1.08 Lora,Georgia,serif;letter-spacing:-.025em;margin:4px 0 0;cursor:pointer;text-wrap:balance;-webkit-tap-highlight-color:transparent}
 .cv-hl em{font-style:italic;font-weight:400;color:#6B625B!important}
 .cv-grow{flex:1;min-height:20px}
 .cv-nums{display:flex;gap:26px;flex-wrap:wrap}
@@ -3756,7 +3757,7 @@ function simpleWeek(){
     h('div',{class:'mm-head'},h('h2',{class:'mm-title'},S.weekOffset?label:'This week'),
       h('div',{class:'sc-nav'},h('button',{'aria-label':'Previous week',onclick:()=>{S.weekOffset=(S.weekOffset||0)-1;renderMain()}},'‹'),h('button',{'aria-label':'Next week',onclick:()=>{S.weekOffset=(S.weekOffset||0)+1;renderMain()}},'›'))),
     days.map(d=>{const x=parseYmd(d);const its=S.tasks.filter(z=>z.due===d||(d===t&&!z.done&&z.due&&z.due<t)).sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'));
-      return h('div',{class:'sw-day'+(d===t?' today':'')+(d<t?' past':'')},
+      return h('div',{class:'sw-day'+(d===t?' today':'')+(d<t?' past':''),'data-d':d},
         h('button',{class:'sw-date',onclick:()=>{S.dayPick=d;S.schedView='day';renderMain()}},h('small',null,d===t?'Today':DOW[x.getDay()].slice(0,3)),h('b',null,x.getDate())),
         h('div',{class:'sw-items'},its.length?its.map(z=>h('button',{class:'sw-it'+(z.done?' done':''),onclick:()=>openTask(z)},h('i',{class:'mk mk-'+kindOf(z)}),h('span',null,z.title||'Untitled'),z.time?h('em',null,fmtTime(z.time)):null)):h('span',{class:'sw-free'},'Free')))}));
 }
@@ -3962,6 +3963,198 @@ moreMenu=(function(prev){return function(){const c=counts();openSheet('Menu',[['
 document.head.append(Object.assign(document.createElement('style'),{textContent:`
 #tabbar.tb4{display:grid!important;grid-template-columns:repeat(4,1fr)!important;align-items:center;justify-items:center}
 #tabbar.tb4 .tab.add.mail-tab{width:50px!important;height:50px!important;margin-top:0!important;box-shadow:none!important}
+`}));
+
+/* ===== Welcome page in the current look: List D, Lora, oat ===== */
+ringLogo=function(){const w=h('div',{class:'ring-logo new-logo','aria-label':'Daylo'});w.append(logoMark(64,true));return w};
+const WELCOME_LINES=[['Where your days','take shape.'],['Your inbox, deals and days.','Finally on speaking terms.'],['Organized, not boring.','We promise.'],['Less chaos.','More content.'],['Brands, money, ideas.','All in one calm place.']];
+renderOnboarding=(function(prev){return function(){const r=prev();try{
+  const m=document.getElementById('main');
+  const wl=WELCOME_LINES[(S._wl==null?(S._wl=Math.floor(Math.random()*WELCOME_LINES.length)):S._wl)];
+  m.querySelectorAll('.lp-mark').forEach(x=>x.replaceWith(logoMark(30)));
+  m.querySelectorAll('.lp-brand').forEach(b=>{[...b.childNodes].forEach(n=>{if(n.nodeType===3)n.remove()})});
+  const h1=m.querySelector('.lp-h1');if(h1)h1.replaceChildren(wl[0]+' ',h('em',null,wl[1]));
+  const eb=m.querySelector('.lp-eyebrow');if(eb)eb.textContent='Daylo';
+  const tag=m.querySelector('.lp-mobile .onb-tag');if(tag){const rl=m.querySelector('.lp-mobile .ring-logo');if(rl)rl.remove();tag.replaceWith(h('div',{class:'wl-card'},h('span',{class:'wl-logo'},logoMark(40)),h('span',{class:'wl-name'},'Daylo'),h('h1',null,wl[0]+' ',h('em',null,wl[1]))))}
+  const ph=m.querySelector('.lp-phone .lp-screen');if(ph){ph.replaceChildren(
+    h('div',{class:'wp-top'},logoMark(18)),
+    h('div',{class:'wp-cv'},h('span',null,new Date().toLocaleDateString(undefined,{weekday:'long'})),h('b',null,'12 emails. ',h('em',null,'Bold of them to assume you’re free.')),h('div',{class:'wp-n'},h('i',null,'3'),h('i',null,'12'),h('i',null,'$1,250'))),
+    h('div',{class:'wp-l'},['Aritzia','Sara Lopez','Reformation'].map((n,i)=>h('div',null,h('b',null,n),h('span',null,['Fall campaign','Shoot call time Friday','Invoice for September'][i])))))}
+}catch(e){console.error(e)}return r}})(renderOnboarding);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+body.onb #tabbar,body.onb .top-more{display:none!important}
+@media (min-width:901px){#tabbar.tb4{display:none!important}.top-more{display:none!important}}
+.new-logo{display:flex;justify-content:center;color:#141312;width:auto!important;height:auto!important;border:0!important}
+.new-logo svg{width:64px;height:64px}
+.wl-card{background:#ECE5DC;border-radius:28px;padding:26px 24px;display:flex;flex-direction:column;gap:10px;text-align:left;width:100%;max-width:380px;margin:18px auto 6px}
+.wl-name{font:600 11px var(--f-body);letter-spacing:.24em;text-transform:uppercase;color:#857A70}
+.wl-card h1{font:400 36px/1.08 Lora,Georgia,serif;letter-spacing:-.02em;margin:0;color:#141312}.wl-card h1 em{color:#6B625B}
+body.onb .lp-h1{font:400 64px/1.04 Lora,Georgia,serif!important;letter-spacing:-.025em!important;color:#141312!important;opacity:1!important}
+body.onb .lp-h1 em{color:#6B625B!important;font-style:italic}
+body.onb .lp-eyebrow{color:#857A70!important;opacity:1!important}
+body.onb .lp-sub{color:#5F5B57!important;opacity:1!important}
+body.onb .lp-copy,body.onb .lp-copy *{opacity:1;transform:none}
+body.onb .lp-brand{display:flex;align-items:center;color:#141312}
+body.onb .lp-glow{background:radial-gradient(closest-side,#ECE5DC,transparent)!important}
+body.onb .lp-feat h3{font-family:Lora,Georgia,serif!important;font-weight:400!important}
+body.onb .lp-fi{background:#ECE5DC!important;color:#141312!important}
+.wp-top{display:flex;justify-content:center;padding:6px 0 10px;color:#141312}
+.wp-cv{background:#ECE5DC;border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:8px;margin:0 8px}
+.wp-cv span{font:600 8px var(--f-body);letter-spacing:.2em;text-transform:uppercase;color:#857A70}
+.wp-cv b{font:400 19px/1.1 Lora,Georgia,serif;color:#141312}.wp-cv b em{color:#6B625B}
+.wp-n{display:flex;gap:14px;margin-top:30px}.wp-n i{font:400 18px Lora,Georgia,serif;font-style:normal;color:#141312}
+.wp-l{display:flex;flex-direction:column;margin:10px 10px 0}.wp-l div{padding:8px 0;border-top:1px solid #ECE9E4;display:flex;flex-direction:column}
+.wp-l b{font:600 10px var(--f-body);color:#141312}.wp-l span{font:400 9.5px var(--f-body);color:#6F6C67}
+`}));
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+body.onb .lp-mobile .new-logo{position:relative!important;inset:auto!important;margin:0 auto 6px!important;transform:none!important;animation:none!important}
+body.onb .lp-mobile{display:flex;flex-direction:column;align-items:center}
+body.onb .logo-mark,.new-logo .logo-mark{color:#141312!important}
+body.onb .onb-card{background:#ECE5DC!important}
+body.onb .onb-card h2,body.onb .onb-card .onb-h{font-family:Lora,Georgia,serif!important;font-weight:400!important}
+body.onb input[type=checkbox]{accent-color:#222120}
+body.onb .wp-cv{margin-top:64px}
+`}));
+
+document.head.append(Object.assign(document.createElement('style'),{textContent:`.wl-logo{color:#141312;margin-bottom:18px}.wl-logo .logo-mark{color:#141312!important}`}));
+
+/* ===================== Google Calendar: your real calendar inside Daylo (read only) ===================== */
+const GC={busy:false};
+async function cget(path,params){
+  const u=new URL('https://www.googleapis.com/calendar/v3/'+path);if(params)Object.entries(params).forEach(([k,v])=>u.searchParams.set(k,v));
+  let r;try{r=await fetch(u,{headers:{Authorization:'Bearer '+GTOK}})}catch{throw {copy:'Google Calendar didn’t answer. Check your connection.'}}
+  if(r.status===401){GTOK=null;lsSet(GKEY,null);throw {copy:'Your Google sign-in expired. Tap Connect again.',expired:true}}
+  if(r.status===403){let j={};try{j=await r.json()}catch{}const m=(j.error&&j.error.message)||'';
+    if(/has not been used|disabled/i.test(m))throw {copy:'Google Calendar is still being switched on for Daylo. Try again in a few minutes.',off:true};
+    throw {copy:'Daylo needs permission to see your calendar. Tap Connect and allow Calendar.',scope:true}}
+  if(!r.ok)throw {copy:'Google Calendar didn’t answer. Try again.'};return r.json();
+}
+function connectCalendar(){GTOK=null;lsSet(GKEY,null);lsSet('daylo-next',{cal:1});gToken().catch(e=>toast(e.copy||'Couldn’t connect to Google.'))}
+async function loadCalendar(force){
+  if(GC.busy)return;if(!GTOK||!GCALOK||Date.now()>GTOKexp-60000){if(force)connectCalendar();return}
+  if(!force&&S.settings.gcalAt&&Date.now()-S.settings.gcalAt<10*60000)return;
+  GC.busy=true;
+  try{
+    const cl=await cget('users/me/calendarList',{minAccessRole:'reader',maxResults:'50'});
+    const cals=(cl.items||[]).filter(c=>c.selected||c.primary).slice(0,12);
+    const t0=new Date();t0.setDate(t0.getDate()-7);const t1=new Date();t1.setDate(t1.getDate()+90);
+    const out=[];
+    for(const c of cals){try{const r=await cget('calendars/'+encodeURIComponent(c.id)+'/events',{timeMin:t0.toISOString(),timeMax:t1.toISOString(),singleEvents:'true',orderBy:'startTime',maxResults:'250'});
+      (r.items||[]).filter(e=>e.status!=='cancelled').forEach(e=>{const allDay=!!(e.start&&e.start.date);
+        const meet=(e.hangoutLink)||((e.conferenceData&&e.conferenceData.entryPoints||[]).find(p=>p.entryPointType==='video')||{}).uri||'';
+        out.push({id:e.id,cal:c.summaryOverride||c.summary||'',title:e.summary||'(busy)',allDay,start:allDay?e.start.date:e.start.dateTime,end:allDay?e.end.date:(e.end&&e.end.dateTime),loc:e.location||'',desc:(e.description||'').replace(/<[^>]+>/g,' ').slice(0,1500),link:e.htmlLink||'',meet})})}catch(e){if(e.off||e.scope||e.expired)throw e}}
+    await saveSettings({gcalEvents:out,gcalAt:Date.now(),gcalOn:true});
+  }catch(e){if(force||!e.off)toast(e.copy||'Couldn’t read your calendar.')}
+  finally{GC.busy=false;if(['schedule','today'].includes(page))renderMain()}
+}
+function calEventsOn(d){const ev=S.settings.gcalEvents||[];return ev.filter(e=>{if(e.allDay){return e.start<=d&&d<(e.end||addDays(e.start,1))}return ymd(new Date(e.start))===d}).sort((a,b)=>(a.allDay?'':a.start).localeCompare(b.allDay?'':b.start))}
+function evTime(e){if(e.allDay)return 'All day';const s=new Date(e.start);return s.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
+function openEvent(e){
+  const s=new Date(e.allDay?e.start+'T00:00':e.start),en=e.end?new Date(e.allDay?e.end+'T00:00':e.end):null;
+  const when=e.allDay?s.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'}):s.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})+' · '+s.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+(en?' – '+en.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):'');
+  const body=h('div',{class:'ev-sheet'},h('span',{class:'mv2-brand'},'Google Calendar'+(e.cal?' · '+e.cal:'')),h('h2',{class:'ev-title'},e.title),h('p',{class:'ev-when'},when),
+    e.loc?h('p',{class:'ev-loc'},icon('pin'),e.loc):null,
+    e.meet?h('a',{class:'btn',href:e.meet,target:'_blank',rel:'noopener'},icon('ext'),'Join video call'):null,
+    e.desc?h('div',{class:'mail-body ev-desc'},linkify(e.desc)):null,
+    h('p',{class:'small muted'},'From your Google Calendar. Change it there and Daylo updates.'));
+  openDrawer(e.title,body,[h('button',{class:'btn',onclick:closeDrawer},icon('back'),'Back'),e.link?h('a',{class:'btn primary',href:e.link,target:'_blank',rel:'noopener'},'Open in Google Calendar'):null].filter(Boolean),{noFocus:true});markMailDrawer();
+}
+function evRow(e){return h('div',{class:'mm-row ev-row',role:'button',tabindex:'0',onclick:()=>openEvent(e)},
+  h('span',{class:'mm-tm'},evTime(e)),h('i',{class:'mm-bar k-event'}),
+  h('div',{class:'mm-tx'},h('b',null,e.title),h('span',null,[e.loc?e.loc.split(',')[0]:null,'Calendar'].filter(Boolean).join(' · '))))}
+function calConnectCard(){
+  if(S.settings.gcalOn&&GCALOK)return null;
+  return h('button',{class:'gc-connect',onclick:()=>connectCalendar()},h('span',null,h('b',null,S.settings.gcalOn?'Reconnect Google Calendar':'Add your Google Calendar'),h('small',null,'See doctor visits, meetings and plans here too. Read only.')),h('span',{class:'gc-go'},'→'))}
+/* plug events into Calendar, Week and Today */
+KIND_LABEL.event='Calendar';
+const _monthItemsG=monthItems;
+monthItems=function(d){return [..._monthItemsG(d),...calEventsOn(d).map(e=>({type:'__event',done:false,_ev:e}))]};
+const _kindOfG=kindOf;kindOf=function(x){return x&&x.type==='__event'?'event':_kindOfG(x)};
+dayView=(function(prev){return function(){setTimeout(()=>loadCalendar(false),60);const el=prev();try{
+  const sel=S.dayPick||ymd();const list=el.querySelector('.mm-list');const evs=calEventsOn(sel);
+  if(list&&evs.length){const empty=list.querySelector('.sc-empty');if(empty)empty.remove();
+    const rows=evs.map(evRow);
+    const tasks=[...list.children];list.replaceChildren(...[...rows,...tasks].sort((a,b)=>{const ta=(a.querySelector('.mm-tm')||{}).textContent||'';const tb=(b.querySelector('.mm-tm')||{}).textContent||'';const v=s=>{if(/All day/.test(s))return -1;if(/Late/.test(s))return -2;const m=s.match(/(\d+):(\d+)\s*(AM|PM)?/i);if(!m)return 9999;let hh=+m[1]%12;if(/PM/i.test(m[3]||''))hh+=12;return hh*60+ +m[2]};return v(ta)-v(tb)}));
+    const dh=el.querySelector('.mm-dayhead span:last-child');if(dh){const n=list.children.length;dh.textContent=n+(n===1?' thing':' things')}}
+  const cc=calConnectCard();if(cc){const lg=el.querySelector('.mm-leg');if(lg)lg.after(cc)}
+}catch(e){console.error(e)}return el}})(dayView);
+simpleWeek=(function(prev){return function(){const el=prev();try{
+  el.querySelectorAll('.sw-day').forEach(row=>{const b=row.querySelector('.sw-date');if(!b)return;const its=row.querySelector('.sw-items');
+    const d=row.dataset.d;if(!d)return;const evs=calEventsOn(d);if(!evs.length)return;const free=its.querySelector('.sw-free');if(free)free.remove();
+    its.prepend(...evs.map(e=>h('button',{class:'sw-it',onclick:()=>openEvent(e)},h('i',{class:'mk mk-event'}),h('span',null,e.title),h('em',null,evTime(e)))))})}catch(e){console.error(e)}return el}})(simpleWeek);
+pageToday=(function(prev){return function(){setTimeout(()=>loadCalendar(false),80);const el=prev();try{
+  const now=Date.now();const t=ymd();const next=calEventsOn(t).filter(e=>e.allDay||new Date(e.end||e.start).getTime()>now)[0];
+  const dt=el.querySelector('.cv-date');if(next&&dt)dt.after(h('button',{class:'cv-next',onclick:()=>openEvent(next)},h('span',null,next.allDay?'Today':evTime(next)),h('b',null,next.title)))}catch(e){console.error(e)}return el}})(pageToday);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.mk-event{background:none;border-radius:1px;width:8px;height:2.4px;background:#141312;align-self:center}
+.mm-d.today .mk-event{background:#FAFAF9}
+.k-event{background:repeating-linear-gradient(#141312 0 3px,transparent 3px 6px)}
+.gc-connect{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#ECE5DC;border:0;border-radius:18px;padding:14px 16px;text-align:left;cursor:pointer;color:#141312;font:inherit;width:100%}
+.gc-connect b{display:block;font:600 14.5px var(--f-body)}.gc-connect small{display:block;font:400 13px var(--f-body);color:#5F5B57;margin-top:2px}.gc-go{font:400 20px var(--f-body)}
+.cv-next{display:flex;gap:10px;align-items:baseline;border:0;background:#F5F1EB;border-radius:14px;padding:10px 14px;cursor:pointer;color:#141312;font:inherit;text-align:left;align-self:flex-start}
+.cv-next span{font:600 11px var(--f-body);letter-spacing:.1em;text-transform:uppercase;color:#857A70}.cv-next b{font:500 15px var(--f-body)}
+.ev-sheet{display:flex;flex-direction:column;gap:12px;padding-top:14px}
+.ev-title{font:500 30px/1.1 Lora,Georgia,serif;margin:0;letter-spacing:-.02em;color:#141312}
+.ev-when{font:italic 400 16px Lora,Georgia,serif;color:#5F5B57;margin:0}
+.ev-loc{display:flex;gap:8px;align-items:center;margin:0;font:400 15px var(--f-body)}.ev-loc svg{width:16px;height:16px}
+.ev-desc{border-top:1px solid var(--line);padding-top:12px}
+`}));
+
+/* ===================== Deals & money: one page ===================== */
+const _pagePaymentsDM=pagePayments;
+function dealAmt(c){const v=c.feeConfirmed!=null&&c.feeConfirmed!==''?c.feeConfirmed:c.feeProposed;return v?money(v,c.currency):(c.dealType==='Gifted'?'Gift':'')}
+function dealSub(c,b){const days=c.updatedAt?Math.max(0,Math.round((Date.now()-c.updatedAt)/864e5)):0;const due=c.dueDate||c.postingDate;
+  if(b==='deliver')return [c.campaign&&c.campaign.length<40?c.campaign:null,due?'due '+fmtDay(due):null].filter(Boolean).join(' · ')||'Content to make';
+  if(b==='waiting')return days?'Waiting '+days+(days===1?' day':' days'):'Waiting for payment';
+  if(b==='talks')return c.feeProposed?'Offer on the table':'In conversation';
+  if(b==='paid')return 'Paid ✓';return c.stage||'Done'}
+const DM_TONE={deliver:['#222120','#FAFAF9','#3A3734'],waiting:['#ECE5DC','#141312','#FAFAF9'],talks:['#DCD7D0','#141312','#FAFAF9'],paid:['#F4F0EA','#141312','#FAFAF9'],closed:['#FAFAF9','#8B8A86','#F1EEEA']};
+function dealCard(c){const b=dealBucket(c);const [bg,fg,mono]=DM_TONE[b]||DM_TONE.talks;
+  return h('button',{class:'dm-card',style:'background:'+bg+';color:'+fg,onclick:()=>openCampaign(c)},
+    h('span',{class:'dm-mono',style:'background:'+mono},(c.brand||'?').trim().charAt(0).toUpperCase()),
+    h('span',{class:'dm-tx'},h('b',null,c.brand||'Untitled'),h('small',null,dealSub(c,b))),
+    h('span',{class:'dm-am'},dealAmt(c)))}
+pageCampaigns=function(){
+  const all=[...S.campaigns].sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  const sum=k=>{const o={};all.filter(c=>dealBucket(c)===k).forEach(c=>{const v=Number(c.feeConfirmed||c.feeProposed||0);if(v){const cur=c.currency||defCur();o[cur]=(o[cur]||0)+v}});return Object.entries(o).map(([cur,v])=>money(v,cur)).join(' + ')};
+  const cnt=k=>all.filter(c=>dealBucket(c)===k).length;
+  const groups=[['deliver','To deliver'],['waiting','Waiting for money'],['talks','In talks'],['paid','Paid']].map(([k,t])=>{const it=all.filter(c=>dealBucket(c)===k);if(!it.length)return null;return h('section',{class:'dm-group'},h('div',{class:'dm-h'},h('span',null,t),h('span',null,String(it.length))),it.map(dealCard))}).filter(Boolean);
+  const closed=all.filter(c=>dealBucket(c)==='closed');
+  let pay=null;try{const el=_pagePaymentsDM();const hd=el.querySelector('.page-head');if(hd)hd.remove();pay=h('div',{class:'dm-pay'},h('div',{class:'dm-h dm-big'},h('span',null,'Invoices & payments')),...el.childNodes)}catch(e){console.error(e)}
+  return h('div',{class:'page dm-page'},
+    h('div',{class:'sh-title'},h('h1',null,'Deals & money'),h('button',{class:'btn sm primary',onclick:()=>openCampaign(null)},'+ Deal')),
+    h('div',{class:'dm-sum'},
+      h('div',null,h('b',null,sum('waiting')||'$0'),h('span',null,'Owed to you')),
+      h('div',null,h('b',null,sum('paid')||'$0'),h('span',null,'Paid')),
+      h('div',null,h('b',null,String(cnt('deliver'))),h('span',null,'To deliver'))),
+    ...groups,
+    closed.length?h('details',{class:'dm-closed'},h('summary',null,'Done · '+closed.length),closed.slice(0,20).map(dealCard)):null,
+    all.length?null:h('div',{class:'nt-empty'},h('h2',null,'No deals yet. ',h('em',null,'Your future brand partners are shy.')),h('p',null,'Connect Gmail and Daylo finds your deals, or add one yourself.')),
+    pay);
+};
+pagePayments=function(){return pageCampaigns()};
+go=(function(prev){return function(p){return prev(p==='payments'?'campaigns':p)}})(go);
+try{for(let i=NAV.length-1;i>=0;i--){if(NAV[i][0]==='payments')NAV.splice(i,1);else if(NAV[i][0]==='campaigns')NAV[i][1]='Deals & money'}}catch{}
+moreMenu=function(){openSheet('Menu',[['campaigns','Deals & money',null,()=>{S.campStages=null;go('campaigns')}],['contacts','Contacts',null,()=>go('contacts')],['bell','Notifications',notifications().length+' to look at',openNotifications],['settings','Settings',null,()=>go('settings')],...(typeof shareDaylo==='function'?[['spark','Share Daylo','Show a QR code to a friend',shareDaylo]]:[])])};
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.dm-page{gap:12px!important}
+.dm-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:#ECE5DC;border-radius:24px;padding:18px 16px}
+.dm-sum div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.dm-sum b{font:400 28px/1 Lora,Georgia,serif;color:#141312;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dm-sum span{font:600 10px var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:#857A70}
+.dm-group{display:flex;flex-direction:column;gap:8px}
+.dm-h{display:flex;justify-content:space-between;font:600 11px var(--f-body);letter-spacing:.16em;text-transform:uppercase;color:#141312;padding:14px 2px 2px}
+.dm-h span:last-child{color:#857A70}
+.dm-big{font-size:12px;padding-top:26px;border-top:1px solid var(--line);margin-top:10px}
+.dm-card{display:flex;align-items:center;gap:14px;border:0;border-radius:20px;padding:14px 16px;cursor:pointer;text-align:left;font:inherit;width:100%}
+.dm-mono{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font:500 19px Lora,Georgia,serif;flex:none}
+.dm-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.dm-tx b{font:500 18px Lora,Georgia,serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dm-tx small{font:500 12.5px var(--f-body);opacity:.72}
+.dm-am{font:400 22px Lora,Georgia,serif;flex:none}
+.dm-closed{margin-top:6px}.dm-closed summary{font:600 11px var(--f-body);letter-spacing:.16em;text-transform:uppercase;color:#857A70;padding:10px 2px;cursor:pointer}
+.dm-closed .dm-card{margin-bottom:6px}
+.dm-pay .panel{margin-top:10px}
 `}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
