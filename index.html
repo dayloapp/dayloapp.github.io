@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610142311';
+const BUILD_ID='202610142322';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -3721,7 +3721,7 @@ dayView=function(){
   const start=S.calStart||weekStartOf(t);const cells=[];for(let i=0;i<35;i++)cells.push(addDays(start,i));
   const m1=parseYmd(cells[0]),m2=parseYmd(cells[34]);
   const mName=d=>d.toLocaleDateString(undefined,{month:'long'});
-  const title=m1.getMonth()===m2.getMonth()?[mName(m1)]:[mName(m1),' – ',mName(m2)];
+  const focus=(t>=cells[0]&&t<=cells[34])?parseYmd(t):parseYmd(cells[10]);const title=[mName(focus)];
   const shift=n=>{S.calStart=addDays(start,35*n);S.dayPick=S.calStart<=t&&t<addDays(S.calStart,35)?t:S.calStart;renderMain()};
   const grid=h('div',{class:'mm-grid',role:'grid','aria-label':'Calendar'},
     cells.slice(0,7).map(d=>h('span',{class:'mm-w'},DOW[parseYmd(d).getDay()].slice(0,1))),
@@ -4253,7 +4253,8 @@ renderTabbar=function(){
   const mailTab=tab('inbox','Email'+(unread?', '+unread+' unread':''),[mailMark(),unread?h('span',{class:'mail-n'},unread>99?'99+':String(unread)):null],()=>go('inbox'),' mail-tab4');
   const sch=tab('schedule','Schedule',[calMark(26)],()=>go('schedule'));
   const nts=tab('notes','Notes',[noteIcon()],()=>go('notes'));
-  tb.replaceChildren(moneyTab,mailTab,sch,nts);tb.classList.add('tb4');
+  const todayTab=tab('today','Today',[icon('today')],()=>{S.campStages=null;S.invFilter=null;closeDrawer();go('today')});
+  tb.replaceChildren(todayTab,mailTab,sch,nts);tb.classList.add('tb4');
 };
 /* the logo at the top takes you to Today */
 document.addEventListener('click',e=>{const b=e.target.closest('.topbar .brand,.top .brand,header .brand');if(b&&!document.body.classList.contains('onb')){e.preventDefault();go('today')}},true);
