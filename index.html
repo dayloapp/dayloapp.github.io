@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610142322';
+const BUILD_ID='202610142327';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -4251,7 +4251,7 @@ renderTabbar=function(){
   const tab=(k,label,inner,fn,extra)=>h('button',{class:'tab4'+(extra||''),'aria-label':label,'aria-current':page===k?'page':null,onclick:fn},inner);
   const moneyTab=tab('campaigns','Money this month: '+compactMoney(mm.n,mm.cur),[h('b',{class:'tm-num'},compactMoney(mm.n,mm.cur)),h('span',{class:'tm-lbl'},new Date().toLocaleDateString(undefined,{month:'short'}))],()=>{S.campStages=null;go('campaigns')},' money-tab');
   const mailTab=tab('inbox','Email'+(unread?', '+unread+' unread':''),[mailMark(),unread?h('span',{class:'mail-n'},unread>99?'99+':String(unread)):null],()=>go('inbox'),' mail-tab4');
-  const sch=tab('schedule','Schedule',[calMark(26)],()=>go('schedule'));
+  const sch=tab('schedule','Schedule',[calMark(32)],()=>go('schedule'));
   const nts=tab('notes','Notes',[noteIcon()],()=>go('notes'));
   const todayTab=tab('today','Today',[icon('today')],()=>{S.campStages=null;S.invFilter=null;closeDrawer();go('today')});
   tb.replaceChildren(todayTab,mailTab,sch,nts);tb.classList.add('tb4');
@@ -4447,6 +4447,22 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 }
 `}));
 (function(){const fix=()=>document.querySelectorAll('.nav button').forEach(b=>{if(/^(Campaigns|Deals)$/.test((b.firstChild&&b.firstChild.nodeType===3?b.firstChild.textContent:b.textContent).trim()))b.firstChild.nodeType===3?b.firstChild.textContent='Deals & money':b.textContent='Deals & money'});new MutationObserver(fix).observe(document.documentElement,{childList:true,subtree:true});fix()})();
+
+/* bigger icons everywhere on the phone */
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+@media (max-width:900px){
+ #tabbar.tb4{height:auto!important;padding-top:10px!important;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 10px)!important}
+ #tabbar.tb4 .tab4{height:60px;min-width:64px}
+ #tabbar.tb4 .tab4 .ico svg,#tabbar.tb4 .tab4 .ico{width:32px!important;height:32px!important}
+ #tabbar.tb4 .tab4 .cal-mark,#tabbar.tb4 .tab4 .cal-mark svg{width:32px!important;height:32px!important}
+ #tabbar.tb4 .mail-tab4{width:60px!important;min-width:60px!important;height:60px!important}
+ #tabbar.tb4 .mail-tab4 .mail-mark svg{width:31px;height:31px}
+ #tabbar.tb4 .tab4:not([aria-current="page"]):not(.mail-tab4){color:#6F6C67}
+ .top-more{width:46px;height:46px;gap:6px;padding:10px}.top-more span{height:2.2px}
+ .topbar .iconbtn svg,.top .iconbtn svg,header .iconbtn svg,.bell svg{width:27px!important;height:27px!important}
+ .topbar .logo-mark svg,header .logo-mark svg{width:36px!important;height:36px!important}
+}
+`}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
