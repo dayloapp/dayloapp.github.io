@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610142337';
+const BUILD_ID='202610142341';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -4549,6 +4549,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 
 /* calendar: check for new Google events whenever the app comes back to the screen */
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.settings&&S.settings.gcalOn)loadCalendar(false)});
+simpleWeek=(function(prev){return function(){const el=prev();try{const cc=calConnectCard();const hd=el.querySelector('.mm-head');if(cc&&hd)hd.after(cc)}catch(e){console.error(e)}return el}})(simpleWeek);
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
