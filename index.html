@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610150820';
+const BUILD_ID='202610150829';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -4742,6 +4742,46 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .tl-l{font:600 12px var(--f-body);color:#857A70;flex:none;font-variant-numeric:tabular-nums}.tl-l.late{color:#141312}
 .tl-more{align-self:flex-start;border:0;background:none;font:600 11px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:#857A70;padding:14px 0 8px;cursor:pointer}
 .tl-empty p{margin:14px 0;font:400 18px Lora,Georgia,serif;color:#141312}.tl-empty em{color:#6B625B}
+`}));
+
+/* ===================== Today, final: M3 smart money number + one quiet "Next" line ===================== */
+function smartMoney(){
+  const waiting=S.campaigns.filter(c=>dealBucket(c)==='waiting');const o={};waiting.forEach(c=>{const v=Number(c.feeConfirmed||c.feeProposed||0);if(v){const k=c.currency||defCur();o[k]=(o[k]||0)+v}});
+  (S.settings.gmailMoney||[]).filter(x=>x.kind==='owed'&&x.amount&&!waiting.some(c=>c.threadId===x.threadId)).forEach(x=>{o[x.amount.cur]=(o[x.amount.cur]||0)+x.amount.n});
+  const cur=defCur();if(o[cur])return {v:compactMoney(o[cur],cur),l:'Owed to you',hi:true,go:()=>go('campaigns')};
+  const mot=moneyOnTable();if(mot.n)return {v:compactMoney(mot.n,mot.cur),l:'On the table',hi:true,go:()=>go('campaigns')};
+  const open=S.campaigns.filter(c=>['talks','deliver'].includes(dealBucket(c))).length;if(open)return {v:String(open),l:open===1?'Deal open':'Deals open',go:()=>go('campaigns')};
+  const g=Number(S.settings.moneyGoal||0);if(g){const mm=monthMoney();return {v:Math.min(100,Math.round(mm.n/g*100))+'%',l:'Of your goal',go:()=>go('campaigns')}}
+  return {v:'Pitch',l:'a brand →',go:()=>openCampaign(null)}}
+function nextItem(){const tl=todayTimeline();const row=tl.querySelector('.tl-row');if(!row)return null;return row}
+pageToday=(function(prev){return function(){const el=prev();try{
+  el.querySelectorAll('.tl,.fx').forEach(n=>n.remove());
+  const nums=el.querySelectorAll('.cv-num');const third=nums[2];
+  if(third){const m=smartMoney();third.replaceWith(h('button',{class:'cv-num'+(m.hi?' cv-hi':''),onclick:m.go},h('b',null,m.v),h('span',null,m.l)))}
+  const cv=el.querySelector('.cv');
+  if(cv&&window.innerWidth<1000){
+    // build the single "Next" line from the same ordering as the timeline
+    const t=ymd();const end=addDays(weekStartOf(t),6);const now=Date.now();const c=[];
+    (S.tasks||[]).filter(x=>!x.done&&x.due&&x.due<=end).forEach(x=>c.push({k:(x.due<t?'0':x.due===t?'1':'2')+x.due+(x.time||'99'),task:x,title:x.title,when:x.due<t?'Late':x.due===t?(x.time?fmtTime(x.time):'Today'):DOW[parseYmd(x.due).getDay()].slice(0,3)}));
+    calEventsOn(t).filter(e=>e.allDay||new Date(e.end||e.start).getTime()>now).forEach(e=>c.push({k:'1'+t+(e.allDay?'00':new Date(e.start).toTimeString().slice(0,5)),ev:e,title:e.title,when:evTime(e)}));
+    c.sort((a,b)=>a.k.localeCompare(b.k));const n=c[0];
+    if(n){const line=h('div',{class:'nx'},
+        n.task?h('button',{class:'nx-ck','aria-label':'Mark done',onclick:e=>{e.currentTarget.classList.add('on');setTimeout(()=>attempt(()=>save('tasks',{...n.task,done:true,doneAt:Date.now()})),250)}}):h('span',{class:'nx-ev'}),
+        h('button',{class:'nx-tx',onclick:()=>n.task?openTask(n.task):openEvent(n.ev)},h('span',{class:'nx-l'},n.when==='Late'?'Late':'Next'),h('b',null,n.title)),
+        n.when!=='Late'?h('span',{class:'nx-w'},n.when):null);
+      cv.after(line)}}
+}catch(e){console.error(e)}return el}})(pageToday);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.cv-num.cv-hi{background:#222120;color:#FAFAF9!important;border-radius:18px;padding:10px 14px!important;margin:-10px 0 -2px}
+.cv-num.cv-hi span{color:#B9AC9F!important}
+.nx{display:flex;align-items:center;gap:14px;background:rgba(250,250,249,.6);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.8);border-radius:24px;padding:16px 20px;box-shadow:0 8px 24px rgba(60,50,40,.05);animation:fxIn .35s ease both}
+@keyframes fxIn{from{opacity:0;transform:translateY(6px)}}
+.nx-ck{width:24px;height:24px;border-radius:50%;border:1.8px solid #9A958F;background:none;flex:none;cursor:pointer;padding:0;transition:all .2s}.nx-ck.on{background:#222120;border-color:#222120}
+.nx-ev{width:24px;flex:none;display:grid;place-items:center}.nx-ev::before{content:"";width:12px;height:2.6px;border-radius:2px;background:#141312}
+.nx-tx{flex:1;min-width:0;border:0;background:none;padding:0;text-align:left;cursor:pointer;color:#141312;font:inherit;display:flex;flex-direction:column;gap:3px}
+.nx-l{font:600 9.5px var(--f-body);letter-spacing:.18em;text-transform:uppercase;color:#857A70}
+.nx-tx b{font:500 16.5px var(--f-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nx-w{font:400 19px Lora,Georgia,serif;color:#141312;flex:none}
 `}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
