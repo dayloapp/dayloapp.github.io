@@ -2190,8 +2190,8 @@ function notifSetup(){const st=notifState();const on=st==='granted'&&S.settings.
 
 /* ---------- gmail: read the person's inbox on their own device and suggest what to add ---------- */
 const GOOGLE_CLIENT_ID='696829738580-90g050if0p3qkklt6rsvql7c0a7fj20k.apps.googleusercontent.com';   // filled in after the Google Cloud setup
-const GSCOPE='https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar.readonly';
-let GCALOK=false;
+const GSCOPE='https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar.readonly';
+let GCALOK=false,GMOD=false;
 let GSEND=false;
 let GTOK=null,GTOKexp=0,gisP=null;
 const GMS={busy:false};
@@ -2208,12 +2208,12 @@ function lsSet(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(
   try{history.replaceState(null,'',location.pathname)}catch{}
   if(q.get('error')){GMS.backErr=q.get('error')==='access_denied'?'Gmail wasn’t allowed, so nothing was read.':'Google didn’t allow it this time. Try again.';return}
   if(!want||q.get('state')!==want.state){return}
-  GSEND=/gmail\.send/.test(q.get('scope')||'');GCALOK=/calendar/.test(q.get('scope')||'');
-  if(!/gmail\.readonly/.test(q.get('scope')||'')){GMS.backErr='Please tick the box that lets Daylo read your email, then try again.';return}
+  GSEND=/gmail\.send/.test(q.get('scope')||'');GCALOK=/calendar/.test(q.get('scope')||'');GMOD=/gmail\.modify/.test(q.get('scope')||'');
+  if(!/gmail\.(readonly|modify)/.test(q.get('scope')||'')){GMS.backErr='Please tick the box that lets Daylo read your email, then try again.';return}
   GTOK=q.get('access_token');GTOKexp=Date.now()+(Number(q.get('expires_in'))||3600)*1000;
-  lsSet(GKEY,{t:GTOK,exp:GTOKexp,send:GSEND,cal:GCALOK});GMS.autoFor=want.cur||'';lsSet('daylo-gstate',null);
+  lsSet(GKEY,{t:GTOK,exp:GTOKexp,send:GSEND,cal:GCALOK,mod:GMOD});GMS.autoFor=want.cur||'';lsSet('daylo-gstate',null);
 })();
-(function restorePass(){if(GTOK)return;const p=lsGet(GKEY);if(p&&p.t&&Date.now()<p.exp-60000){GTOK=p.t;GTOKexp=p.exp;GSEND=!!p.send;GCALOK=!!p.cal}})();
+(function restorePass(){if(GTOK)return;const p=lsGet(GKEY);if(p&&p.t&&Date.now()<p.exp-60000){GTOK=p.t;GTOKexp=p.exp;GSEND=!!p.send;GCALOK=!!p.cal;GMOD=!!p.mod}})();
 function gToken(){
   if(GTOK&&Date.now()<GTOKexp-60000)return Promise.resolve(GTOK);
   if(!gmailReady())return Promise.reject({copy:'Gmail is almost ready. Try again soon.'});
@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610142053';
+const BUILD_ID='202610142311';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -3654,7 +3654,6 @@ openMail=async function(threadId){
     h('button',{class:'btn mv2-close',onclick:closeDrawer},icon('back'),'Back'),
     h('button',{class:'btn primary',onclick:()=>{closeDrawer();openComposer({to,subject:'Re: '+subj});if(CP)CP.gmail={threadId,msgId,refs}}},icon('reply'),'Reply')],{noFocus:true});
   markMailDrawer();
-  try{const it=(S.settings.gmailInbox||[]).find(m=>m.threadId===threadId);if(it&&it.unread){it.unread=false;renderTabbar()}}catch{}
 };
 function markMailDrawer(){const d=document.querySelector('#overlay .drawer');if(d)d.classList.add('mail-drawer')}
 document.head.append(Object.assign(document.createElement('style'),{textContent:`
@@ -4156,6 +4155,297 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .dm-closed .dm-card{margin-bottom:6px}
 .dm-pay .panel{margin-top:10px}
 `}));
+
+/* ===================== Email: search, older emails, spam, read/unread ===================== */
+const IB={mode:'inbox',q:'',res:null,busy:false,more:[],moreDone:false};
+async function gmod(path,body){
+  let r;try{r=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/'+path,{method:'POST',headers:{Authorization:'Bearer '+GTOK,'Content-Type':'application/json'},body:JSON.stringify(body||{})})}catch{throw {copy:'Gmail didn’t answer. Try again.'}}
+  if(r.status===401){GTOK=null;lsSet(GKEY,null);throw {copy:'Your Google sign-in expired.',expired:true}}
+  if(r.status===403)throw {copy:'Daylo needs permission to organize your email.',scope:true};
+  if(!r.ok)throw {copy:'Gmail didn’t answer. Try again.'};return r.json();
+}
+function needModify(next){toast('One more permission: let Daylo mark emails read/unread and move spam.');setTimeout(()=>{GTOK=null;lsSet(GKEY,null);needGoogle(next||{})},900)}
+async function setUnread(threadId,unread,quiet){
+  if(!tokOk()||!GMOD){if(!quiet)needModify({open:threadId});return false}
+  try{await gmod('threads/'+threadId+'/modify',unread?{addLabelIds:['UNREAD']}:{removeLabelIds:['UNREAD']});
+    [S.settings.gmailInbox||[],S.settings.gmailRecent||[],IB.more,IB.res||[]].forEach(l=>l.forEach(m=>{if(m.threadId===threadId)m.unread=unread}));persist();renderTabbar();return true}
+  catch(e){if(e.scope&&!quiet)needModify({open:threadId});else if(!quiet)toast(e.copy);return false}
+}
+async function moveSpam(threadId,spam){
+  if(!tokOk()||!GMOD){needModify({open:threadId});return}
+  try{await gmod('threads/'+threadId+'/modify',spam?{addLabelIds:['SPAM'],removeLabelIds:['INBOX']}:{addLabelIds:['INBOX'],removeLabelIds:['SPAM']});
+    if(spam){S.settings.gmailInbox=(S.settings.gmailInbox||[]).filter(m=>m.threadId!==threadId);IB.more=IB.more.filter(m=>m.threadId!==threadId)}
+    if(IB.res)IB.res=IB.res.filter(m=>m.threadId!==threadId);persist();closeDrawer();toast(spam?'Moved to spam':'Moved back to your inbox');renderMain();renderTabbar()}
+  catch(e){if(e.scope)needModify({open:threadId});else toast(e.copy)}
+}
+async function fetchList(q,max,pageToken){
+  const r=await gget('messages',Object.assign({q,maxResults:max||50},pageToken?{pageToken}:{}));
+  const seen=new Set();const ids=(r.messages||[]).filter(m=>{if(seen.has(m.threadId))return false;seen.add(m.threadId);return true});
+  const out=[];let i=0;const w=async()=>{while(i<ids.length){const x=ids[i++];try{const m=await gget('messages/'+x.id,{format:'metadata',metadataHeaders:['From','Subject','Date','List-Unsubscribe','Precedence']});const p=parseMsg(m);
+    if(p)out.push({threadId:p.threadId,fromName:p.fromName,email:p.from.email,subject:p.subject,snippet:p.snippet,at:p.at,unread:p.unread,bulk:p.bulk||(m.labelIds||[]).some(l=>/CATEGORY_(PROMOTIONS|SOCIAL|FORUMS|UPDATES)/.test(l)),spam:(m.labelIds||[]).includes('SPAM')})}catch(e){if(e.expired)break}}};
+  await Promise.all(Array.from({length:6},w));out.sort((a,b)=>b.at-a.at);return {list:out,next:r.nextPageToken};
+}
+async function runSearch(q){IB.q=q.trim();if(!IB.q){IB.mode='inbox';IB.res=null;renderMain();return}
+  if(!tokOk()){checkInbox();return}
+  IB.mode='search';IB.busy=true;IB.res=null;renderMain();
+  try{IB.res=(await fetchList(IB.q+' -in:chats',50)).list}catch(e){toast(e.copy||'Couldn’t search.');IB.res=[]}
+  IB.busy=false;renderMain()}
+async function openSpam(){if(!tokOk()){checkInbox();return}IB.mode='spam';IB.busy=true;IB.res=null;renderMain();
+  try{IB.res=(await fetchList('in:spam',50)).list}catch(e){toast(e.copy||'Couldn’t open spam.');IB.res=[]}IB.busy=false;renderMain()}
+async function loadOlder(){if(!tokOk()){checkInbox();return}
+  const all=[...inboxList(),...IB.more];const oldest=all.reduce((a,m)=>Math.min(a,m.at||Date.now()),Date.now());
+  IB.busy=true;renderMain();
+  try{const d=new Date(oldest);const q='in:inbox before:'+d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate();const r=await fetchList(q,40);
+    const have=new Set(all.map(m=>m.threadId));const add=r.list.filter(m=>!have.has(m.threadId));IB.more.push(...add);if(!add.length)IB.moreDone=true}
+  catch(e){toast(e.copy||'Couldn’t load older emails.')}IB.busy=false;renderMain()}
+function mailRows(list,group){
+  const now=new Date();const t0=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();
+  const grp=ms=>ms>=t0?'Today':ms>=t0-864e5?'Yesterday':ms>=t0-6*864e5?'This week':ms>=t0-30*864e5?'This month':new Date(ms).toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  const when=ms=>{const d=new Date(ms);return ms>=t0?d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):ms>=t0-6*864e5?d.toLocaleDateString(undefined,{weekday:'short'}):d.toLocaleDateString(undefined,{month:'short',day:'numeric'})};
+  const rows=[];let last='';
+  list.forEach(m=>{if(group){const g=grp(m.at);if(g!==last){rows.push(h('div',{class:'sh-g'},g));last=g}}
+    const name=(m.bulk?'':guessBrand({name:m.fromName,email:m.email}))||m.fromName||m.email;
+    rows.push(h('button',{class:'sh-row'+(m.unread?' unread':'')+(m.bulk?' bulk':''),onclick:()=>{IB.openSpam=IB.mode==='spam';openMail(m.threadId)}},
+      h('span',{class:'sh-top'},h('b',{class:'sh-name'},name),h('span',{class:'sh-time'},when(m.at))),
+      h('span',{class:'sh-sub'},(m.subject||'(no subject)').replace(/^(re|fwd?):\s*/i,''))))});
+  return rows}
+gmailInboxPanel=function(){
+  const st=S.settings;
+  if(!st.gmailAt&&!inboxList().length)return h('section',{class:'sh-empty'},h('p',null,'Connect Gmail to see your email here.'),h('button',{class:'btn primary',onclick:checkGmail},icon('mail'),'Connect Gmail'));
+  const search=h('form',{class:'sh-search',onsubmit:e=>{e.preventDefault();runSearch(e.target.elements.q.value)}},
+    h('input',{class:'input',name:'q',type:'search',placeholder:'Search all your email',value:IB.mode==='search'?IB.q:'',enterkeyhint:'search'}),
+    IB.mode!=='inbox'?h('button',{type:'button',class:'btn sm ghost',onclick:()=>{IB.mode='inbox';IB.res=null;IB.q='';renderMain()}},'Inbox'):null);
+  const tabs=h('div',{class:'sh-tabs'},h('button',{class:IB.mode!=='spam'?'on':'',onclick:()=>{IB.mode='inbox';IB.res=null;renderMain()}},'Inbox'),h('button',{class:IB.mode==='spam'?'on':'',onclick:openSpam},'Spam'));
+  let body;
+  if(IB.mode==='search'||IB.mode==='spam'){
+    body=IB.busy?h('p',{class:'sh-cap',style:'padding:18px 2px'},IB.mode==='spam'?'Opening spam…':'Searching…'):(IB.res&&IB.res.length?h('div',{class:'sh-list'},mailRows(IB.res,true)):emptyState(IB.mode==='spam'?'Spam is empty':'Nothing found',IB.mode==='spam'?'Nice. Nothing sketchy in here.':'Try another word, a name or a brand.'))}
+  else{const list=[...inboxList(),...IB.more];
+    body=[h('div',{class:'sh-head'},h('span',{class:'sh-cap'},IBX.busy?'Loading…':(list.length+' conversations')),h('button',{class:'btn sm ghost','aria-label':'Refresh',onclick:()=>loadInbox30(true)},icon('refresh'))),
+      list.length?h('div',{class:'sh-list'},mailRows(list,true)):emptyState('No emails yet','Nothing came in lately.'),
+      list.length&&!IB.moreDone?h('button',{class:'mv2-more',onclick:loadOlder},IB.busy?'Loading…':'Show older emails'):null]}
+  return h('section',{class:'sh'},search,tabs,body);
+};
+openMail=(function(prev){return async function(threadId){await prev(threadId);try{
+  const head=document.querySelector('#overlay .mv2-head');if(!head)return;
+  const it=[...inboxList(),...IB.more,...(IB.res||[])].find(m=>m.threadId===threadId);
+  if(it&&it.unread){if(GMOD&&tokOk())setUnread(threadId,false,true);else{it.unread=false;persist();renderTabbar()}}
+  const spamView=IB.mode==='spam';
+  head.append(h('div',{class:'mv2-acts'},
+    h('button',{onclick:async()=>{if(await setUnread(threadId,true)){closeDrawer();toast('Marked as unread')}}},'Mark unread'),
+    spamView?h('button',{onclick:()=>moveSpam(threadId,false)},'Not spam'):h('button',{onclick:()=>moveSpam(threadId,true)},'Spam')))}catch(e){console.error(e)}}})(openMail);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.sh-search{display:flex;gap:8px;align-items:center}.sh-search .input{flex:1;border-radius:14px;background:#F1EEEA;border-color:transparent}
+.sh-tabs{display:flex;gap:6px;margin:10px 0 2px}.sh-tabs button{border:0;background:none;padding:7px 12px;border-radius:16px;font:500 13.5px var(--f-body);color:#857A70;cursor:pointer}.sh-tabs button.on{background:#222120;color:#FAFAF9}
+.mv2-acts{display:flex;gap:8px;margin-top:4px}.mv2-acts button{border:1px solid #DCD3C8;background:#F5F1EB;border-radius:16px;padding:6px 12px;font:500 12.5px var(--f-body);color:#141312;cursor:pointer}
+`}));
+
+/* ===================== Bottom bar: Money · Mail · Schedule · Notes ===================== */
+function monthMoney(){const m=ymd().slice(0,7);const o={};
+  (S.invoices||[]).filter(i=>i.status==='Paid'&&(i.paidOn||i.issued||'').slice(0,7)===m).forEach(i=>{const c=i.currency||defCur();o[c]=(o[c]||0)+Number(i.amount||0)});
+  if(!Object.keys(o).length)(S.campaigns||[]).filter(c=>c.payStatus==='Paid'&&c.updatedAt&&ymd(new Date(c.updatedAt)).slice(0,7)===m).forEach(c=>{const cu=c.currency||defCur();o[cu]=(o[cu]||0)+Number(c.feeConfirmed||0)});
+  const cur=defCur();return {n:o[cur]||0,cur}}
+function compactMoney(n,cur){try{return new Intl.NumberFormat(undefined,{style:'currency',currency:cur,notation:n>=10000?'compact':'standard',maximumFractionDigits:n>=10000?1:0}).format(n)}catch{return '$'+Math.round(n)}}
+renderTabbar=function(){
+  const tb=document.getElementById('tabbar');if(!tb)return;
+  const mm=monthMoney();const unread=inboxList().filter(m=>m.unread&&!m.bulk).length;
+  const tab=(k,label,inner,fn,extra)=>h('button',{class:'tab4'+(extra||''),'aria-label':label,'aria-current':page===k?'page':null,onclick:fn},inner);
+  const moneyTab=tab('campaigns','Money this month: '+compactMoney(mm.n,mm.cur),[h('b',{class:'tm-num'},compactMoney(mm.n,mm.cur)),h('span',{class:'tm-lbl'},new Date().toLocaleDateString(undefined,{month:'short'}))],()=>{S.campStages=null;go('campaigns')},' money-tab');
+  const mailTab=tab('inbox','Email'+(unread?', '+unread+' unread':''),[mailMark(),unread?h('span',{class:'mail-n'},unread>99?'99+':String(unread)):null],()=>go('inbox'),' mail-tab4');
+  const sch=tab('schedule','Schedule',[calMark(26)],()=>go('schedule'));
+  const nts=tab('notes','Notes',[noteIcon()],()=>go('notes'));
+  tb.replaceChildren(moneyTab,mailTab,sch,nts);tb.classList.add('tb4');
+};
+/* the logo at the top takes you to Today */
+document.addEventListener('click',e=>{const b=e.target.closest('.topbar .brand,.top .brand,header .brand');if(b&&!document.body.classList.contains('onb')){e.preventDefault();go('today')}},true);
+/* Today: no "Open my day" button */
+pageToday=(function(prev){return function(){const el=prev();try{const g=el.querySelector('.cv-go');if(g)g.remove()}catch{}return el}})(pageToday);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+#tabbar.tb4 .tab4{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:0;background:none;cursor:pointer;color:#8B8A86;height:52px;min-width:56px;border-radius:16px;padding:0 6px}
+#tabbar.tb4 .tab4[aria-current="page"]{color:#141312}
+#tabbar.tb4 .tab4 .ico svg{width:25px;height:25px}
+.money-tab .tm-num{font:500 17px/1 Lora,Georgia,serif;color:#141312;letter-spacing:-.01em}
+.money-tab .tm-lbl{font:600 9.5px var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:#857A70}
+.money-tab[aria-current="page"]{background:#ECE5DC}
+.mail-tab4{width:50px!important;min-width:50px!important;height:50px!important;border-radius:50%!important;background:#222120!important;color:#FAFAF9!important}
+.mail-tab4 .mail-n{top:-4px;right:-6px}
+`}));
+
+/* ===================== Notes 2: rich text (titles, bold, highlight, bullets, to-dos) + autosave on leave ===================== */
+let NOTE_FLUSH=null;
+const NT_OK={B:1,STRONG:1,I:1,EM:1,MARK:1,H3:1,UL:1,OL:1,LI:1,DIV:1,BR:1,P:1,SPAN:1,U:1};
+function cleanNoteHtml(html){const doc=new DOMParser().parseFromString('<div>'+html+'</div>','text/html');const root=doc.body.firstChild;
+  (function walk(n){[...n.childNodes].forEach(c=>{if(c.nodeType===3)return;if(c.nodeType!==1){c.remove();return}
+    if(!NT_OK[c.tagName]){walk(c);c.replaceWith(...c.childNodes);return}
+    const cls=(c.getAttribute('class')||'').split(/\s+/).filter(x=>['nt-todo','nt-ck','nt-tt','on'].includes(x)).join(' ');
+    [...c.attributes].forEach(a=>c.removeAttribute(a.name));if(cls)c.setAttribute('class',cls);if(c.classList.contains('nt-ck'))c.setAttribute('contenteditable','false');walk(c)})})(root);
+  return root.innerHTML}
+const escH=t=>String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+openNote=function(n0){
+  const n={tone:'cream',images:[],...n0};let saving=null;
+  if(!n.html&&n.body)n.html=escH(n.body).replace(/\n/g,'<br>');
+  const persistNote=async()=>{if(!n.title&&!(n.body||'').trim()&&!(n.images||[]).length)return;n.id=await save('notes',{...n});};
+  const queue=()=>{clearTimeout(saving);saving=setTimeout(persistNote,400)};
+  NOTE_FLUSH=async()=>{clearTimeout(saving);await persistNote()};
+  const title=h('input',{class:'nt-title',placeholder:n.board?'Board name':'Title',value:n.title||'',oninput:e=>{n.title=e.target.value;queue()}});
+  const ed=h('div',{class:'nt-rich',contenteditable:'true','data-ph':n.board?'What is this board about?':'Start writing…',spellcheck:'true'});ed.innerHTML=n.html||'';
+  const sync=()=>{n.html=cleanNoteHtml(ed.innerHTML);n.body=ed.innerText.replace(/\n{3,}/g,'\n\n').trim();ed.classList.toggle('empty',!n.body);queue()};
+  ed.addEventListener('input',sync);
+  ed.addEventListener('click',e=>{const ck=e.target.closest('.nt-ck');if(ck){ck.parentElement.classList.toggle('on');sync()}});
+  ed.classList.toggle('empty',!(n.body||'').trim());
+  const cmd=(c,v)=>{ed.focus();document.execCommand(c,false,v||null);sync()};
+  const fmt=[
+    ['Aa','Title',()=>{const b=document.queryCommandValue('formatBlock');cmd('formatBlock',/h3/i.test(b)?'div':'h3')}],
+    ['B','Bold',()=>cmd('bold')],
+    ['✎','Highlight',()=>{const s=window.getSelection();if(!s||s.isCollapsed){toast('Select some words first');return}const t=s.toString();cmd('insertHTML','<mark>'+escH(t)+'</mark>&#8203;')}],
+    ['•','Bullets',()=>cmd('insertUnorderedList')],
+    ['☐','To-do',()=>addTodo()]];
+  const blockOf=node=>{let n=node;while(n&&n.parentNode!==ed){n=n.parentNode}return n&&n.parentNode===ed?n:null};
+  const caretTo=(el,end)=>{const r=document.createRange();r.selectNodeContents(el);r.collapse(!end);const sl=window.getSelection();sl.removeAllRanges();sl.addRange(r)};
+  const mkTodo=txt=>{const d=h('div',{class:'nt-todo'});const ck=h('span',{class:'nt-ck',contenteditable:'false'});const t=h('span',{class:'nt-tt'});t.textContent=txt||'';if(!txt)t.append(h('br'));d.append(ck,t);return d};
+  const addTodo=()=>{ed.focus();const sl=window.getSelection();const blk=sl&&sl.rangeCount?blockOf(sl.anchorNode):null;
+    if(blk&&blk.classList&&blk.classList.contains('nt-todo')){const div=h('div');div.textContent=blk.innerText.trim();if(!div.textContent)div.append(h('br'));blk.replaceWith(div);caretTo(div,true);sync();return}
+    if(blk&&blk.nodeType===1&&!/^(UL|OL|H3)$/.test(blk.tagName)&&blk.innerText.trim()){const t=mkTodo(blk.innerText.trim());blk.replaceWith(t);caretTo(t.querySelector('.nt-tt'),true);sync();return}
+    if(blk&&blk.nodeType===3&&blk.textContent.trim()){const t=mkTodo(blk.textContent.trim());blk.replaceWith(t);caretTo(t.querySelector('.nt-tt'),true);sync();return}
+    const t=mkTodo('');if(blk&&blk.nodeType===1&&!blk.innerText.trim())blk.replaceWith(t);else if(blk)blk.after(t);else ed.append(t);caretTo(t.querySelector('.nt-tt'),false);sync()};
+  ed.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.shiftKey)return;const sl=window.getSelection();if(!sl||!sl.rangeCount)return;const blk=blockOf(sl.anchorNode);
+    if(!blk||!blk.classList||!blk.classList.contains('nt-todo'))return;e.preventDefault();
+    if(!blk.innerText.trim()){const div=h('div');div.append(h('br'));blk.replaceWith(div);caretTo(div,false);sync();return}
+    const t=mkTodo('');blk.after(t);caretTo(t.querySelector('.nt-tt'),false);sync()});
+  const fbar=h('div',{class:'nt-fmt'},fmt.map(([sym,lab,fn])=>h('button',{type:'button','aria-label':lab,title:lab,onmousedown:e=>e.preventDefault(),onclick:fn},h('b',null,sym),h('span',null,lab))));
+  const imgs=h('div',{class:'nt-imgs'+(n.board?' board':'')});
+  const drawImgs=()=>{imgs.className='nt-imgs'+(n.board?' board':'');imgs.replaceChildren(...(n.images||[]).map((id,i)=>h('div',{class:'nt-im'},imgEl(id),h('button',{class:'nt-x','aria-label':'Remove photo',onclick:()=>{n.images=n.images.filter((_,j)=>j!==i);drawImgs();queue()}},'×'))))};
+  const file=h('input',{type:'file',accept:'image/*',multiple:true,style:'display:none',onchange:async e=>{const fs=[...e.target.files];e.target.value='';if(!fs.length)return;toast('Adding '+fs.length+(fs.length===1?' photo…':' photos…'));
+    for(const f of fs){try{const id=await storeImage(await shrinkImage(f));n.images=[...(n.images||[]),id]}catch(err){console.error(err);toast('Couldn’t add a photo')}}drawImgs();queue()}});
+  const sheetEl={};
+  const tones=h('div',{class:'nt-tones'},NOTE_TONES.map(([k,bg])=>h('button',{class:'nt-tone'+(n.tone===k?' on':''),'aria-label':k,style:'background:'+bg,onclick:()=>{n.tone=k;tones.querySelectorAll('.nt-tone').forEach(b=>b.classList.toggle('on',b.getAttribute('aria-label')===k));sheetEl.s.style.setProperty('--nt-bg',toneOf(k)[1]);sheetEl.s.style.setProperty('--nt-fg',toneOf(k)[2]);queue()}})));
+  const boardBtn=h('button',{class:'nt-tool'+(n.board?' on':''),onclick:()=>{n.board=!n.board;boardBtn.classList.toggle('on',n.board);drawImgs();queue()}},'▦ Board');
+  const tools=h('div',{class:'nt-tools'},h('button',{class:'nt-tool',onclick:()=>file.click()},icon('camera'),'Photo'),
+    h('button',{class:'nt-tool',onclick:()=>openSketch(async blob=>{const id=await storeImage(blob);n.images=[...(n.images||[]),id];drawImgs();queue()})},icon('pen'),'Sketch'),boardBtn,file);
+  const sheet=h('div',{class:'nt-sheet',style:'--nt-bg:'+toneOf(n.tone)[1]+';--nt-fg:'+toneOf(n.tone)[2]},tools,title,imgs,fbar,ed,tones);sheetEl.s=sheet;
+  drawImgs();
+  const del=n.id?h('button',{class:'btn ghost nt-del',onclick:e=>confirmDelete(e.currentTarget,async()=>{clearTimeout(saving);NOTE_FLUSH=null;await removeDoc('notes',n.id);closeDrawer();if(page==='notes')renderMain();toast('Note deleted')})},'Delete'):null;
+  openDrawer(n.board?'Board':'Note',sheet,[h('button',{class:'btn',onclick:()=>closeDrawer()},icon('back'),'Back'),del].filter(Boolean),{noFocus:true});
+  markMailDrawer();const d=document.querySelector('#overlay .drawer');if(d)d.classList.add('note-drawer');
+  setTimeout(()=>{if(!n.id&&!n.board)title.focus()},40);
+};
+closeDrawer=(function(prev){return function(){const f=NOTE_FLUSH;NOTE_FLUSH=null;prev();if(f)f().then(()=>{if(page==='notes')renderMain()}).catch(()=>{})}})(closeDrawer);
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&NOTE_FLUSH){NOTE_FLUSH().then(()=>{try{persistNow()}catch{}})}});
+window.addEventListener('pagehide',()=>{if(NOTE_FLUSH)NOTE_FLUSH()});
+/* show rich text nicely on the notes wall */
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.nt-fmt{display:flex;gap:4px;flex-wrap:wrap;position:sticky;top:0;z-index:2;background:var(--nt-bg);padding:6px 0;border-bottom:1px solid rgba(127,120,112,.2)}
+.nt-fmt button{display:flex;align-items:center;gap:5px;border:0;background:transparent;color:inherit;border-radius:10px;padding:6px 9px;cursor:pointer;font:500 12px var(--f-body)}
+.nt-fmt button b{font:600 15px Lora,Georgia,serif}.nt-fmt button span{opacity:.7}
+.nt-fmt button:active{background:rgba(127,120,112,.18)}
+.nt-rich{min-height:200px;outline:none;font:400 17px/1.6 Lora,Georgia,serif;color:inherit;padding:4px 0 10px;word-break:break-word}
+.nt-rich.empty:before{content:attr(data-ph);opacity:.4;pointer-events:none;position:absolute}
+.nt-rich h3{font:500 23px/1.2 Lora,Georgia,serif;margin:14px 0 4px;letter-spacing:-.01em}
+.nt-rich mark{background:#E4D3BF;color:inherit;padding:0 2px;border-radius:3px}
+.nt-rich ul{margin:6px 0;padding-left:22px}.nt-rich li{margin:2px 0}
+.nt-todo{display:flex;align-items:flex-start;gap:10px;margin:4px 0}.nt-tt{flex:1;min-width:0;outline:none}
+.nt-ck{flex:none;width:19px;height:19px;border:1.6px solid currentColor;border-radius:6px;margin-top:4px;cursor:pointer;opacity:.75;display:inline-block}
+.nt-todo.on .nt-ck{background:currentColor;box-shadow:inset 0 0 0 3px var(--nt-bg,#F4F0EA);opacity:1}
+.nt-todo.on{text-decoration:line-through;opacity:.55}
+.note-drawer .drawer-body{position:relative}
+`}));
+
+/* ===================== Monthly money goal ===================== */
+function goalCard(){const g=Number(S.settings.moneyGoal||0);const mm=monthMoney();const mon=new Date().toLocaleDateString(undefined,{month:'long'});
+  const edit=card=>{const box=h('form',{class:'goal-edit',onsubmit:async e=>{e.preventDefault();const v=Number(String(e.target.elements.g.value).replace(/[^\d.]/g,''));await saveSettings({moneyGoal:v||0});renderMain();renderTabbar();toast(v?'Goal set. Let’s go get it.':'Goal removed')}},
+    h('input',{class:'input',name:'g',inputmode:'decimal',placeholder:'e.g. 5000',value:g||''}),h('button',{class:'btn primary',type:'submit'},'Save'));card.replaceChildren(h('span',{class:'goal-lbl'},mon+' goal'),box);box.elements.g.focus()};
+  if(!g){const card=h('div',{class:'goal-card empty',role:'button',tabindex:'0',onclick:e=>{if(!e.target.closest('form'))edit(e.currentTarget)}},h('span',{class:'goal-lbl'},mon+' goal'),h('b',null,'Set a money goal ',h('em',null,'for this month →')));return card}
+  const pct=Math.min(100,Math.round(mm.n/g*100));const left=Math.max(0,g-mm.n);
+  const line=pct>=100?'Goal smashed. Frame this month.':pct>=75?'Almost there. Smell that?':pct>=40?'Halfway-ish. Keep pitching.':pct>0?'A start is a start.':'Fresh month, fresh money.';
+  const card=h('div',{class:'goal-card',role:'button',tabindex:'0',onclick:e=>{if(!e.target.closest('form'))edit(e.currentTarget)}},
+    h('div',{class:'goal-top'},h('span',{class:'goal-lbl'},mon+' goal'),h('span',{class:'goal-lbl'},pct+'%')),
+    h('div',{class:'goal-nums'},h('b',null,compactMoney(mm.n,mm.cur)),h('span',null,' of '+compactMoney(g,mm.cur))),
+    h('div',{class:'goal-bar'},h('i',{style:'width:'+pct+'%'})),
+    h('span',{class:'goal-line'},left?compactMoney(left,mm.cur)+' to go · '+line:line));
+  return card}
+pageCampaigns=(function(prev){return function(){const el=prev();try{const s=el.querySelector('.dm-sum');if(s)s.before(goalCard())}catch(e){console.error(e)}return el}})(pageCampaigns);
+pagePayments=function(){return pageCampaigns()};
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.goal-card{display:flex;flex-direction:column;gap:8px;background:#222120;color:#FAFAF9;border:0;border-radius:24px;padding:18px 18px 16px;text-align:left;cursor:pointer;font:inherit;width:100%}
+.goal-card.empty{background:#F5F1EB;color:#141312;border:1px dashed #CFC7BD}
+.goal-card.empty b{font:400 22px Lora,Georgia,serif}.goal-card.empty em{color:#6B625B}
+.goal-top{display:flex;justify-content:space-between}
+.goal-lbl{font:600 10.5px var(--f-body);letter-spacing:.16em;text-transform:uppercase;opacity:.7}
+.goal-nums b{font:400 36px/1 Lora,Georgia,serif}.goal-nums span{font:400 16px Lora,Georgia,serif;opacity:.7}
+.goal-bar{height:8px;border-radius:4px;background:#3A3734;overflow:hidden}.goal-bar i{display:block;height:100%;background:#ECE5DC;border-radius:4px}
+.goal-line{font:italic 400 14px Lora,Georgia,serif;opacity:.8}
+.goal-edit{display:flex;gap:8px}.goal-edit .input{flex:1}
+`}));
+
+/* ===================== Packages: tracking pulled from your shipping emails ===================== */
+const PK={busy:false};
+function trackLink(num){if(/^1Z[0-9A-Z]{16}$/i.test(num))return['UPS','https://www.ups.com/track?tracknum='+num];
+  if(/^(9[2-5]\d{18,24}|[A-Z]{2}\d{9}US)$/.test(num))return['USPS','https://tools.usps.com/go/TrackConfirmAction?tLabels='+num];
+  if(/^\d{12}$|^\d{15}$/.test(num))return['FedEx','https://www.fedex.com/fedextrack/?trknbr='+num];
+  if(/^\d{10}$/.test(num))return['DHL','https://www.dhl.com/us-en/home/tracking.html?tracking-id='+num];return[null,null]}
+function pkStatus(t){return /\bdelivered\b/i.test(t)&&!/(will be|to be|expected|estimated) delivered/i.test(t)?'Delivered':/out for delivery/i.test(t)?'Out for delivery':/(shipped|on (its|the) way|in transit|tracking number|has been dispatched)/i.test(t)?'On the way':/(order (confirmed|received|placed)|thanks for your order|order #)/i.test(t)?'Ordered':null}
+async function loadPackages(force){
+  if(PK.busy||!tokOk())return;if(!force&&S.settings.pkAt&&Date.now()-S.settings.pkAt<30*60000)return;PK.busy=true;
+  try{const r=await gget('messages',{q:'newer_than:21d -in:spam ("has shipped" OR shipped OR "out for delivery" OR "tracking number" OR "on its way" OR "was delivered" OR "has been delivered" OR "in transit")',maxResults:30});
+    const ids=(r.messages||[]).slice(0,30);const byOrder=new Map();let i=0;
+    const w=async()=>{while(i<ids.length){const x=ids[i++];try{const m=await gget('messages/'+x.id,{format:'full'});const p=parseMsg(m);if(!p||p.mine)continue;
+      const text=p.subject+' '+(p.text||p.snippet||'');const st=pkStatus(text);if(!st)continue;
+      const nums=(text.match(/\b(1Z[0-9A-Z]{16}|9[2-5]\d{18,24}|[A-Z]{2}\d{9}US)\b/g)||[]);const num=nums[0]||'';const [carrier,url]=num?trackLink(num):[null,null];
+      const store=(guessBrand(p.from)||p.fromName||'').replace(/\s*(orders?|shipping|support|team|notifications?)$/i,'');
+      const key=num||(store+'|'+p.threadId);const prev=byOrder.get(key);
+      if(!prev||p.at>prev.at)byOrder.set(key,{store,subject:p.subject,status:st,at:p.at,num,carrier,url,threadId:p.threadId})}catch(e){if(e.expired)break}}};
+    await Promise.all(Array.from({length:4},w));
+    const list=[...byOrder.values()].sort((a,b)=>b.at-a.at).slice(0,12);
+    await saveSettings({packages:list,pkAt:Date.now()});if(page==='today')renderMain();
+  }catch(e){console.error(e)}finally{PK.busy=false}
+}
+function packagesCard(){const all=(S.settings.packages||[]);const week=Date.now()-7*864e5;
+  const list=all.filter(p=>p.status!=='Delivered'||p.at>Date.now()-2*864e5).filter(p=>p.at>week||p.status!=='Delivered').slice(0,5);if(!list.length)return null;
+  const coming=list.filter(p=>p.status!=='Delivered').length;
+  return h('section',{class:'pk'},h('div',{class:'dm-h'},h('span',null,coming?'Packages on the way':'Packages'),h('span',null,String(list.length))),
+    list.map(p=>h('div',{class:'pk-row'},h('span',{class:'pk-dot '+(p.status==='Delivered'?'done':p.status==='Out for delivery'?'out':'')}),
+      h('button',{class:'pk-tx',onclick:()=>openMail(p.threadId)},h('b',null,p.store||'Package'),h('span',null,p.status+(p.carrier?' · '+p.carrier:''))),
+      p.url?h('a',{class:'pk-track',href:p.url,target:'_blank',rel:'noopener'},'Track'):null)))}
+pageToday=(function(prev){return function(){setTimeout(()=>loadPackages(false),300);const el=prev();try{const pc=packagesCard();const cv=el.querySelector('.cv');if(pc&&cv)cv.after(pc)}catch(e){console.error(e)}return el}})(pageToday);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.pk{display:flex;flex-direction:column;gap:2px}
+.pk-row{display:flex;align-items:center;gap:12px;padding:11px 2px;border-top:1px solid var(--line)}
+.pk-dot{width:9px;height:9px;border-radius:50%;border:1.6px solid #141312;flex:none}.pk-dot.out{background:#141312}.pk-dot.done{background:#C9C7C3;border-color:#C9C7C3}
+.pk-tx{flex:1;min-width:0;border:0;background:none;text-align:left;padding:0;cursor:pointer;color:#141312;font:inherit;display:flex;flex-direction:column;gap:1px}
+.pk-tx b{font:600 14.5px var(--f-body)}.pk-tx span{font:400 13px var(--f-body);color:#6F6C67}
+.pk-track{font:600 12.5px var(--f-body);color:#141312;border:1px solid #DCD3C8;background:#F5F1EB;border-radius:14px;padding:6px 12px;text-decoration:none}
+`}));
+
+/* ===================== Laptop: Today as a two-column desk ===================== */
+pageToday=(function(prev){return function(){const el=prev();try{
+  if(window.innerWidth<1000)return el;
+  const left=h('div',{class:'dk-left'});const right=h('div',{class:'dk-right'});
+  [...el.childNodes].forEach(n=>left.append(n));
+  const mails=inboxList().filter(m=>!m.bulk).slice(0,6);
+  const t=ymd();const today=[...calEventsOn(t).map(e=>({ev:e})),...S.tasks.filter(x=>!x.done&&x.due&&x.due<=t).map(x=>({task:x}))].slice(0,7);
+  right.append(
+    h('section',{class:'dk-box'},h('div',{class:'dm-h'},h('span',null,'Latest email'),h('button',{class:'dk-link',onclick:()=>go('inbox')},'All email →')),
+      mails.length?h('div',{class:'sh-list'},mailRows(mails,false)):h('p',{class:'sc-empty'},'Connect Gmail to see your email here.')),
+    h('section',{class:'dk-box'},h('div',{class:'dm-h'},h('span',null,'Today'),h('button',{class:'dk-link',onclick:()=>{S.dayPick=t;S.schedView='day';go('schedule')}},'Calendar →')),
+      today.length?today.map(it=>it.ev?h('button',{class:'dk-it',onclick:()=>openEvent(it.ev)},h('em',null,evTime(it.ev)),h('span',null,it.ev.title)):h('button',{class:'dk-it',onclick:()=>openTask(it.task)},h('em',null,it.task.due<t?'Late':(it.task.time?fmtTime(it.task.time):'Today')),h('span',null,it.task.title))):h('p',{class:'sc-empty'},'Nothing planned. Suspiciously calm.')));
+  el.replaceChildren(h('div',{class:'dk-grid'},left,right));el.classList.add('dk-page');
+}catch(e){console.error(e)}return el}})(pageToday);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+@media (min-width:1000px){
+ #main .page{max-width:1180px!important;margin-left:auto!important;margin-right:auto!important}
+ .dk-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:28px;align-items:start}
+ .dk-left{display:flex;flex-direction:column;gap:18px}.dk-right{display:flex;flex-direction:column;gap:22px;position:sticky;top:20px}
+ .dk-page .cv{min-height:520px!important}
+ .dk-page .cv-hl{font-size:52px!important}
+ .dk-box{background:#fff;border:1px solid var(--line);border-radius:24px;padding:6px 20px 14px}
+ .dk-link{border:0;background:none;font:600 11px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:#857A70;cursor:pointer}
+ .dk-it{display:flex;gap:14px;align-items:baseline;width:100%;border:0;border-top:1px solid var(--line);background:none;padding:12px 2px;text-align:left;cursor:pointer;color:#141312;font:inherit}
+ .dk-it em{font-style:normal;font:600 12px var(--f-body);color:#857A70;width:64px;flex:none}.dk-it span{font:500 15px var(--f-body)}
+ .nt-grid{columns:4 220px}
+ .dm-page{max-width:820px!important}
+ .sh-page{max-width:860px!important}
+}
+`}));
+(function(){const fix=()=>document.querySelectorAll('.nav button').forEach(b=>{if(/^(Campaigns|Deals)$/.test((b.firstChild&&b.firstChild.nodeType===3?b.firstChild.textContent:b.textContent).trim()))b.firstChild.nodeType===3?b.firstChild.textContent='Deals & money':b.textContent='Deals & money'});new MutationObserver(fix).observe(document.documentElement,{childList:true,subtree:true});fix()})();
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
