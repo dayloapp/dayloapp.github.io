@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610142335';
+const BUILD_ID='202610142337';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -4031,7 +4031,7 @@ async function cget(path,params){
 function connectCalendar(){GTOK=null;lsSet(GKEY,null);lsSet('daylo-next',{cal:1});gToken().catch(e=>toast(e.copy||'Couldn’t connect to Google.'))}
 async function loadCalendar(force){
   if(GC.busy)return;if(!GTOK||!GCALOK||Date.now()>GTOKexp-60000){if(force)connectCalendar();return}
-  if(!force&&S.settings.gcalAt&&Date.now()-S.settings.gcalAt<10*60000)return;
+  if(!force&&S.settings.gcalAt&&Date.now()-S.settings.gcalAt<2*60000)return;
   GC.busy=true;
   try{
     const cl=await cget('users/me/calendarList',{minAccessRole:'reader',maxResults:'50'});
@@ -4062,7 +4062,8 @@ function evRow(e){return h('div',{class:'mm-row ev-row',role:'button',tabindex:'
   h('span',{class:'mm-tm'},evTime(e)),h('i',{class:'mm-bar k-event'}),
   h('div',{class:'mm-tx'},h('b',null,e.title),h('span',null,[e.loc?e.loc.split(',')[0]:null,'Calendar'].filter(Boolean).join(' · '))))}
 function calConnectCard(){
-  if(S.settings.gcalOn&&GCALOK)return null;
+  if(S.settings.gcalOn&&GCALOK&&tokOk())return null;
+  if(S.settings.gcalOn&&GCALOK&&!tokOk())return h('button',{class:'gc-connect',onclick:()=>connectCalendar()},h('span',null,h('b',null,'Update from Google Calendar'),h('small',null,'Last updated '+agoText(S.settings.gcalAt||Date.now())+'. Tap to get your newest events.')),h('span',{class:'gc-go'},'↻'));
   return h('button',{class:'gc-connect',onclick:()=>connectCalendar()},h('span',null,h('b',null,S.settings.gcalOn?'Reconnect Google Calendar':'Add your Google Calendar'),h('small',null,'See doctor visits, meetings and plans here too. Read only.')),h('span',{class:'gc-go'},'→'))}
 /* plug events into Calendar, Week and Today */
 KIND_LABEL.event='Calendar';
@@ -4545,6 +4546,9 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .dr-row{display:flex;align-items:center;gap:6px}.dr-row .sh-row{flex:1;min-width:0}
 .dr-del{border:0;background:none;font:400 22px var(--f-body);color:#8B8A86;cursor:pointer;padding:6px 10px}
 `}));
+
+/* calendar: check for new Google events whenever the app comes back to the screen */
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.settings&&S.settings.gcalOn)loadCalendar(false)});
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
