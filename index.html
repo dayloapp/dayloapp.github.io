@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610142330';
+const BUILD_ID='202610142335';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -4497,6 +4497,53 @@ pageSchedule=function(){
 document.head.append(Object.assign(document.createElement('style'),{textContent:`
 .ct-line{display:flex;align-items:center;gap:12px;width:100%;border:0;border-top:1px solid var(--line);background:none;padding:10px 2px;text-align:left;cursor:pointer;color:#141312;font:inherit}
 .sw-rlink{display:flex;justify-content:space-between;width:100%;max-width:640px;margin:16px auto 0;border:0;background:#F5F1EB;border-radius:16px;padding:14px 16px;cursor:pointer;font:600 12px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:#141312}
+`}));
+
+/* ===================== Drafts: unsent emails are kept (in Daylo, and in Gmail Drafts when allowed) ===================== */
+function composerValues(){if(!CP)return null;const v=id=>{const e=document.getElementById(id);return e?e.value:null};
+  return {to:v('cp-to')??CP.to??'',cc:v('cp-cc')??CP.cc??'',subject:v('cp-subject')??CP.subject??'',body:v('cp-body')??CP.body??''}}
+function b64url(str){const bytes=new TextEncoder().encode(str);let bin='';bytes.forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+async function gmailDraftSync(d){
+  if(!GMOD||!tokOk())return;
+  const hdrs=['To: '+d.to,d.cc?'Cc: '+d.cc:null,'Subject: '+d.subject,d.gmail&&d.gmail.msgId?'In-Reply-To: '+d.gmail.msgId:null,d.gmail&&d.gmail.refs?'References: '+d.gmail.refs:null,'Content-Type: text/plain; charset="UTF-8"'].filter(Boolean).join('\r\n');
+  const message={raw:b64url(hdrs+'\r\n\r\n'+d.body)};if(d.gmail&&d.gmail.threadId)message.threadId=d.gmail.threadId;
+  const url='https://gmail.googleapis.com/gmail/v1/users/me/drafts'+(d.gid?'/'+d.gid:'');
+  try{const r=await fetch(url,{method:d.gid?'PUT':'POST',headers:{Authorization:'Bearer '+GTOK,'Content-Type':'application/json'},body:JSON.stringify(d.gid?{id:d.gid,message}:{message})});
+    if(r.ok){const j=await r.json();if(j.id&&j.id!==d.gid){d.gid=j.id;saveDraftsList()}}}catch{}
+}
+async function gmailDraftDelete(gid){if(!gid||!GMOD||!tokOk())return;try{await fetch('https://gmail.googleapis.com/gmail/v1/users/me/drafts/'+gid,{method:'DELETE',headers:{Authorization:'Bearer '+GTOK}})}catch{}}
+function draftsList(){return S.settings.drafts||[]}
+function saveDraftsList(){saveSettings({drafts:draftsList()})}
+function keepDraft(){
+  if(!CP||!['edit','review','failed'].includes(CP.step))return;
+  const v=composerValues();if(!v)return;const sig=(S.settings.signature||'').trim();
+  const meaningful=(v.body.replace(sig,'').trim().length>0)||(v.subject.trim()&&!/^re:/i.test(v.subject.trim())&&v.subject.trim().length>0&&v.body.replace(sig,'').trim().length>0);
+  if(!meaningful&&!(CP.draftId))return;
+  const list=draftsList();let d=CP.draftId?list.find(x=>x.id===CP.draftId):null;
+  if(!meaningful&&d){S.settings.drafts=list.filter(x=>x.id!==d.id);gmailDraftDelete(d.gid);saveDraftsList();return}
+  if(!d){d={id:'dr'+Date.now().toString(36)};list.unshift(d);S.settings.drafts=list}
+  Object.assign(d,v,{gmail:CP.gmail||null,at:Date.now()});CP.draftId=d.id;
+  saveDraftsList();gmailDraftSync(d);toast('Saved to drafts');
+}
+closeComposer=(function(prev){return function(){try{keepDraft()}catch(e){console.error(e)}return prev()}})(closeComposer);
+closeDrawer=(function(prev){return function(){try{if(CP&&document.getElementById('cp-body'))keepDraft()}catch(e){console.error(e)}return prev()}})(closeDrawer);
+drawComposer=(function(prev){return function(){prev();try{if(CP&&CP.step==='done'&&CP.draftId){const d=draftsList().find(x=>x.id===CP.draftId);S.settings.drafts=draftsList().filter(x=>x.id!==CP.draftId);if(d)gmailDraftDelete(d.gid);CP.draftId=null;saveDraftsList()}}catch(e){console.error(e)}}})(drawComposer);
+function openDraft(d){openComposer({to:d.to,subject:d.subject,body:d.body});if(CP){CP.cc=d.cc||'';CP.gmail=d.gmail||null;CP.draftId=d.id;drawComposer()}}
+/* Drafts tab in Email */
+gmailInboxPanel=(function(prev){return function(){const el=prev();try{
+  const tabs=el.querySelector('.sh-tabs');const n=draftsList().length;
+  if(!tabs&&n){el.append(h('div',{class:'sh-g'},'Drafts · '+n),h('div',{class:'sh-list'},draftsList().map(d=>h('button',{class:'sh-row',onclick:()=>openDraft(d)},h('span',{class:'sh-top'},h('b',{class:'sh-name'},'To: '+(d.to||'(no one yet)'))),h('span',{class:'sh-sub'},(d.subject||'(no subject)')+' — '+(d.body||'').replace(/\s+/g,' ').slice(0,60))))))}
+  if(tabs){tabs.append(h('button',{class:IB.mode==='drafts'?'on':'',onclick:()=>{IB.mode='drafts';IB.res=null;renderMain()}},'Drafts'+(n?' · '+n:'')));
+    if(IB.mode==='drafts'){tabs.querySelectorAll('button').forEach(b=>b.classList.toggle('on',/^Drafts/.test(b.textContent)));
+      [...el.children].forEach(c=>{if(c!==tabs&&!c.classList.contains('sh-search'))c.remove()});
+      const when=ms=>{const d=new Date(ms);return ymd(d)===ymd()?d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):d.toLocaleDateString(undefined,{month:'short',day:'numeric'})};
+      el.append(n?h('div',{class:'sh-list'},draftsList().map(d=>h('div',{class:'dr-row'},
+        h('button',{class:'sh-row',onclick:()=>openDraft(d)},h('span',{class:'sh-top'},h('b',{class:'sh-name'},'To: '+(d.to||'(no one yet)')),h('span',{class:'sh-time'},when(d.at))),h('span',{class:'sh-sub'},(d.subject||'(no subject)')+' — '+(d.body||'').replace(/\s+/g,' ').slice(0,60))),
+        h('button',{class:'dr-del','aria-label':'Delete draft',onclick:()=>{S.settings.drafts=draftsList().filter(x=>x.id!==d.id);gmailDraftDelete(d.gid);saveDraftsList();renderMain();toast('Draft deleted')}},'×')))):emptyState('No drafts','Anything you write and don’t send is saved here.'))}}
+}catch(e){console.error(e)}return el}})(gmailInboxPanel);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.dr-row{display:flex;align-items:center;gap:6px}.dr-row .sh-row{flex:1;min-width:0}
+.dr-del{border:0;background:none;font:400 22px var(--f-body);color:#8B8A86;cursor:pointer;padding:6px 10px}
 `}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
