@@ -2659,7 +2659,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610151643';
+const BUILD_ID='202610151732';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -5765,7 +5765,7 @@ function parseBank(txt){const L=String(txt||'').split(/\r?\n/).map(x=>x.trim()).
     if(!rows.length&&!cur&&/dollar|euro|pound|usd|eur|gbp|currency/i.test(l)){cur=l;continue}
     if(rows.length)rows[rows.length-1][1]+=', '+l;else rows.push(['Details',l])}
   return {rows,cur}}
-function invMe(){const m=S.settings.invMe||{};return {name:m.name||myName()||'',addr:m.addr||'',phone:m.phone||'',email:m.email||(typeof hintEmail==='function'&&hintEmail())||(typeof CUR==='string'?CUR:'')||'',bank:m.bank||[],bankCur:m.bankCur||'',sign:m.sign||(myName()||'').split(' ')[0]||'',terms:m.terms!=null?m.terms:30}}
+function invMe(){const m=S.settings.invMe||{};return {name:m.name||myName()||'',addr:m.addr||'',phone:m.phone||'',email:m.email||(typeof hintEmail==='function'&&hintEmail())||(typeof CUR==='string'?CUR:'')||'',bank:m.bank||[],bankCur:m.bankCur||'',sign:m.sign||m.name||myName()||'',terms:m.terms!=null?m.terms:30}}
 function openInvoiceDetails(after){
   const m=invMe();let bank=m.bank.map(r=>[...r]);
   const rowsEl=h('div',{class:'ivd-rows'});
@@ -5847,10 +5847,10 @@ async function invoiceCanvas(inv,scale){scale=scale||2.2;const W=794,PAD=70;cons
   const TAUPE='#6F6C67',LBL='#857A70';
   // header
   y=78;T('BILLED TO',PAD,y,'600 9.5px Inter',LBL,'left',1.6);y+=20;T(inv.client||'',PAD,y,'600 12.5px Inter');
-  [inv.contactName,inv.clientEmail].filter(Boolean).forEach(l=>{y+=18;T(l,PAD,y,'400 12px Inter',TAUPE)});
+  [[inv.contactName,inv.clientEmail].filter(Boolean).join(' · '),...(inv.to?String(inv.to.address||'').split('\n'):[]),inv.to&&inv.to.vat?'VAT '+inv.to.vat:''].filter(Boolean).forEach(l=>{y+=18;T(l,PAD,y,'400 12px Inter',TAUPE)});
   let ry=78+20-20;const right=[[me.name,'600 12.5px Inter','#222120'],...String(me.addr||'').split('\n').filter(Boolean).map(l=>[l,'400 12px Inter',TAUPE]),me.phone?[me.phone,'400 12px Inter',TAUPE]:null,me.email?[me.email,'400 12px Inter',TAUPE]:null].filter(Boolean);
-  right.forEach((r,k)=>{T(r[0],W-PAD,78+k*18,r[1],r[2],'right')});
-  y=Math.max(y,78+right.length*18)+110;
+  T('FROM',W-PAD,78,'600 9.5px Inter',LBL,'right',1.6);right.forEach((r,k)=>{T(r[0],W-PAD,98+k*18,r[1],r[2],'right')});
+  y=Math.max(y,98+right.length*18)+90;
   T('Invoice',W/2,y,'400 64px Lora','#222120','center');y+=32;T('NO. '+(inv.number||''),W/2,y,'500 11px Inter',LBL,'center',3);
   y+=34;c.font='400 12px Inter';const d1='ISSUED',d1v=fmtLong(inv.issued),d2='DUE',d2v=fmtLong(inv.due);
   const wA=c.measureText(d1+'  ').width+(c.font='500 12px Inter',c.measureText(d1v).width),wB=(c.font='400 12px Inter',c.measureText(d2+'  ').width)+(c.font='500 12px Inter',c.measureText(d2v).width);
@@ -5953,6 +5953,292 @@ setInterval(liveMailCheck,30000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){LIVE.last=0;liveMailCheck()}});
 window.addEventListener('focus',()=>{LIVE.last=0;liveMailCheck()});
 openMail=(function(prev){return async function(threadId){await prev(threadId);try{const v=document.querySelector('#overlay .mv2');if(v)v.dataset.tid=threadId}catch{}}})(openMail);
+
+/* ===================== MONEY: invoices you edit on the page, contracts, saved brands ===================== */
+try{['brands','contracts'].forEach(c=>{if(!COLLS.includes(c))COLLS.push(c);if(!S[c])S[c]=[]})}catch{}
+TB_ICONS.money='<rect x="7" y="13" width="34" height="22" rx="5" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="24" cy="24" r="4.6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M13.5 19.5v9M34.5 19.5v9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>';
+ICONS.sig='<path d="M3 17c3-6 5-9 6-8s-3 8-1 8 4-6 6-6-1 5 1 5 3-2 5-3"/>';
+const MN={tab:'invoices'};
+const mnSum=arr=>{const o={};arr.forEach(i=>{const c=i.currency||defCur();o[c]=(o[c]||0)+Number(i.amount||0)});const e=Object.entries(o).filter(x=>x[1]);return e.length?e.map(([c,v])=>money(v,c)).join(' + '):money(0,defCur())};
+const brandKey=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function brandsAll(){const out=[...(S.brands||[])];const have=new Set(out.map(b=>brandKey(b.name)));
+  (S.campaigns||[]).forEach(c=>{const k=brandKey(c.brand);if(c.brand&&!have.has(k)){have.add(k);out.push({name:c.brand,email:c.contactEmail||'',_auto:true})}});
+  return out.sort((a,b)=>String(a.name).localeCompare(String(b.name)))}
+function brandFor(name){const k=brandKey(name);return (S.brands||[]).find(b=>brandKey(b.name)===k||brandKey(b.company)===k)||null}
+function brandSnap(b){if(!b)return {};const c=(S.campaigns||[]).find(x=>brandKey(x.brand)===brandKey(b.name));return {company:b.company||b.name||'',name:b.name||'',contact:b.contact||'',email:b.email||c?.contactEmail||'',address:b.address||'',vat:b.vat||''}}
+async function saveBrandFrom(to,brandId){if(!to||!(to.company||to.name))return null;const ex=brandId?(S.brands||[]).find(b=>b.id===brandId):brandFor(to.name||to.company);
+  const rec={...(ex||{}),name:(ex&&ex.name)||to.name||to.company,company:to.company||'',contact:to.contact||'',email:to.email||'',address:to.address||'',vat:to.vat||''};
+  if(ex&&['company','contact','email','address','vat'].every(k=>(ex[k]||'')===(rec[k]||'')))return ex.id;return await save('brands',rec)}
+const mnInit=s=>String(s||'?').split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'?';
+/* ---------- the Money page ---------- */
+function pageMoney(){const t=ymd();const yr=String(new Date().getFullYear());
+  const inv=(S.invoices||[]).slice().sort((a,b)=>String(b.issued||'').localeCompare(String(a.issued||''))||(b.createdAt||0)-(a.createdAt||0));
+  const waiting=inv.filter(i=>i.status==='Sent'),late=waiting.filter(i=>i.due&&i.due<t),paid=inv.filter(i=>i.status==='Paid'&&String(i.paidOn||i.issued||'').startsWith(yr));
+  const stat=(v,l)=>h('div',{class:'mn-stat'},h('b',null,v),h('small',null,l));
+  const pill=s=>h('span',{class:'mn-pill '+String(s).toLowerCase().replace(/\s.*/,'')},s);
+  const invRow=i=>h('button',{class:'mn-row',onclick:()=>openInvoiceEditor(i)},h('span',{class:'mn-av'},mnInit(i.client)),h('span',{class:'mn-tx'},h('b',null,(i.client||'No brand yet')+' · '+(i.number||'')),h('small',null,[i.description,i.status==='Sent'&&i.due?(i.due<t?'late since ':'due ')+ctShortDate(i.due):i.status==='Paid'&&i.paidOn?'paid '+ctShortDate(i.paidOn):null].filter(Boolean).join(' · ')||'Draft')),h('span',{class:'mn-r'},h('span',{class:'mn-amt'},money(i.amount||0,i.currency)),pill(i.status==='Sent'&&i.due&&i.due<t?'Late':i.status||'Draft')));
+  const ctr=(S.contracts||[]).slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  const ctRow=c=>h('button',{class:'mn-row',onclick:()=>openContractEditor(c)},h('span',{class:'mn-av'},mnInit(c.to&&c.to.name||c.to&&c.to.company)),h('span',{class:'mn-tx'},h('b',null,((c.to&&(c.to.name||c.to.company))||'No brand yet')+' · Collaboration agreement'),h('small',null,[c.f&&c.f.deliverables,c.f&&c.f.postDate?'post by '+ctShortDate(c.f.postDate):null].filter(Boolean).join(' · ')||'Draft')),h('span',{class:'mn-r'},pill(c.status==='Sent'?'Waiting for signature':c.status||'Draft')));
+  const brRow=b=>h('button',{class:'mn-row',onclick:()=>openBrand(b)},h('span',{class:'mn-av'},mnInit(b.name)),h('span',{class:'mn-tx'},h('b',null,b.company&&b.company!==b.name?b.company:b.name),h('small',null,b._auto?'Add their details once':[b.address&&b.address.split(/[,\n]/).slice(-2).join(',').trim(),b.vat?'VAT '+b.vat:null,b.contact].filter(Boolean).join(' · ')||'Saved')));
+  const empty=(txt,btn)=>h('div',{class:'mn-empty'},h('p',null,txt),btn);
+  const invBlock=h('section',{class:'mn-sec'},h('div',{class:'mn-sh'},h('h3',null,'Invoices')),inv.length?inv.slice(0,MN.allInv?999:8).map(invRow):empty('No invoices yet. Make one in a minute, it fills itself in from the deal.',null),inv.length>8&&!MN.allInv?h('button',{class:'mn-more',onclick:()=>{MN.allInv=true;renderMain()}},'Show all '+inv.length):null);
+  const ctBlock=h('section',{class:'mn-sec'},h('div',{class:'mn-sh'},h('h3',null,'Contracts')),ctr.length?ctr.map(ctRow):empty('No contracts yet. Make one from a deal: what you deliver, by when, and for how much.',null));
+  const brs=brandsAll();
+  const brBlock=h('section',{class:'mn-sec mn-brands'},h('div',{class:'mn-sh'},h('h3',null,'Brands'),h('button',{class:'mn-add','aria-label':'Add a brand',onclick:()=>openBrand(null)},icon('plus'))),h('p',{class:'mn-note'},'Saved once, filled in on every invoice and contract.'),brs.length?brs.map(brRow):empty('Brands from your deals show up here.',null));
+  const seg=h('div',{class:'mn-seg'},[['invoices','Invoices'],['contracts','Contracts'],['brands','Brands']].map(([k,l])=>h('button',{class:MN.tab===k?'on':'',onclick:()=>{MN.tab=k;renderMain()}},l)));
+  const wide=typeof dkWide==='function'&&dkWide();
+  return h('div',{class:'page mn'+(wide?' mn-wide':'')},
+    h('div',{class:'mn-head'},h('h1',{class:'mn-h1'},'Money ',h('em',null,'· '+new Date().toLocaleDateString('en-US',{month:'long'}))),
+      h('div',{class:'mn-acts'},h('button',{class:'btn ghost',onclick:()=>openContractEditor(null)},icon('pen'),'New contract'),h('button',{class:'btn primary',onclick:()=>openInvoiceEditor(null)},icon('plus'),'New invoice'))),
+    h('div',{class:'mn-stats'},stat(mnSum(waiting),'Waiting'),stat(mnSum(late),'Late'),stat(mnSum(paid),'Paid in '+yr)),
+    wide?h('div',{class:'mn-grid'},h('div',{class:'mn-col'},invBlock,ctBlock),h('div',{class:'mn-col'},brBlock)):h('div',null,seg,MN.tab==='contracts'?ctBlock:MN.tab==='brands'?brBlock:invBlock),
+    h('button',{class:'mn-deals',onclick:()=>{S.campStages=null;go('campaigns')}},'See all your deals',icon('ext')))}
+renderMain=(function(prev){return function(){if(page==='money'){const st=$('#main').scrollTop;$('#main').replaceChildren(pageMoney());$('#main').scrollTop=st;try{dkBody()}catch{}return}return prev()}})(renderMain);
+go=(function(prev){return function(p){return prev(p==='payments'||p==='finance'||p==='invoices'?'money':p)}})(go);
+/* ---------- brand card ---------- */
+function openBrand(b0){const b=b0&&b0.id?{...b0}:{name:b0?b0.name:'',email:b0?b0.email:'',company:b0?b0.name:''};
+  const f=(k,l,o)=>h('label',{class:'ivd-f'},h('span',null,l),o&&o.area?h('textarea',{class:'input',rows:'2',value:b[k]||'',placeholder:o.ph||'',oninput:e=>b[k]=e.target.value}):h('input',{class:'input',value:b[k]||'',placeholder:o&&o.ph||'',type:o&&o.type||'text',oninput:e=>b[k]=e.target.value}));
+  const hist=[...(S.invoices||[]).filter(i=>brandKey(i.client)===brandKey(b.name)||brandKey(i.client)===brandKey(b.company)).map(i=>h('button',{class:'mn-row',onclick:()=>{closeDrawer();openInvoiceEditor(i)}},h('span',{class:'mn-tx'},h('b',null,i.number||'Invoice'),h('small',null,i.description||'')),h('span',{class:'mn-r'},h('span',{class:'mn-amt'},money(i.amount||0,i.currency))))),
+    ...(S.contracts||[]).filter(c=>c.to&&brandKey(c.to.name)===brandKey(b.name)).map(c=>h('button',{class:'mn-row',onclick:()=>{closeDrawer();openContractEditor(c)}},h('span',{class:'mn-tx'},h('b',null,'Collaboration agreement'),h('small',null,c.status||'Draft'))))];
+  const body=h('div',{class:'form ivd'},
+    h('div',{class:'br-top'},h('span',{class:'mn-av big'},mnInit(b.name||b.company)),h('div',null,h('input',{class:'iv-in br-name',value:b.name||'',placeholder:'Brand name',oninput:e=>b.name=e.target.value}),h('small',{class:'muted'},'Brand'))),
+    h('div',{class:'ivd-h'},'For invoices and contracts'),f('company','Company name',{ph:'e.g. Mikuta Fashion GmbH'}),f('address','Address',{area:1,ph:'Street\nPostcode, City, Country'}),f('vat','VAT or tax number',{ph:'Optional'}),
+    h('div',{class:'ivd-two'},f('currency','Currency',{ph:'e.g. EUR'}),f('payDays','Pays in (days)',{type:'number',ph:'30'})),
+    h('div',{class:'ivd-h'},'Person you talk to'),h('div',{class:'ivd-two'},f('contact','Name'),f('email','Email',{type:'email'})),
+    hist.length?h('div',{class:'ivd-h'},'History'):null,...hist);
+  openDrawer(b.name||'New brand',body,[h('button',{class:'btn primary',onclick:async()=>{if(!(b.name||b.company||'').trim()){toast('Add the brand name.');return}if(!b.name)b.name=b.company;const r={...b};delete r._auto;await save('brands',r);toast('Saved. Next invoice fills itself in.');closeDrawer();if(page==='money')renderMain()}},'Save'),b.id?h('button',{class:'btn ghost',onclick:e=>confirmDelete(e.currentTarget,async()=>{await removeDoc('brands',b.id);closeDrawer();if(page==='money')renderMain()})},'Delete'):h('button',{class:'btn ghost',onclick:closeDrawer},'Cancel')]);
+  document.querySelector('#overlay .drawer')?.classList.add('inv-drawer')}
+/* ---------- full-screen editor shell (paper on the left, fields on the right / bottom sheet on phone) ---------- */
+function editorShell(title,paperFn,panelFn,actions,onClose){
+  document.getElementById('ive')?.remove();
+  const paperWrap=h('div',{class:'ive-paperwrap'});const panel=h('div',{class:'ive-panel'});
+  const scaler=h('div',{class:'ive-scale'});paperWrap.append(scaler);
+  const fit=()=>{const w=paperWrap.clientWidth-(window.innerWidth<901?0:8);const s=Math.min(1,w/794);scaler.style.transform='scale('+s+')';scaler.style.height=(scaler.firstChild?scaler.firstChild.offsetHeight*s:0)+'px';scaler.style.width=794*s+'px'};
+  const st={sel:null};
+  const redraw=()=>{const p=paperFn(st.sel,k=>{st.sel=k;redraw();drawPanel();layer.classList.add('editing');setTimeout(()=>panel.querySelector('input,textarea,select')?.focus({preventScroll:true}),60)});scaler.replaceChildren(p);requestAnimationFrame(fit)};
+  const drawPanel=()=>{panel.replaceChildren(h('div',{class:'ive-grab'}),...panelFn(st.sel,()=>redraw()).filter(Boolean),h('div',{class:'ive-done'},h('button',{class:'btn primary',onclick:()=>{layer.classList.remove('editing');st.sel=null;redraw();drawPanel()}},'Done')))};
+  const close=async()=>{if(onClose&&await onClose()===false)return;layer.remove();document.body.classList.remove('ive-open');window.removeEventListener('resize',fit);if(page==='money')renderMain()};
+  const layer=h('div',{class:'ive',id:'ive'},h('header',{class:'ive-top'},h('button',{class:'btn ghost ive-back',onclick:close},icon('back'),'Money'),h('h2',{class:'ive-ttl'},title),h('div',{class:'ive-acts'},...actions)),h('div',{class:'ive-body'},paperWrap,panel));
+  document.body.append(layer);document.body.classList.add('ive-open');window.addEventListener('resize',fit);
+  redraw();drawPanel();
+  return {redraw,drawPanel,select:k=>{st.sel=k;redraw();drawPanel();if(k)layer.classList.add('editing')},close,layer,setTitle:t=>{const e=layer.querySelector('.ive-ttl');if(e)e.replaceChildren(...[].concat(t))}}}
+const zone=(k,sel,pick,label,...kids)=>h('div',{class:'z'+(sel===k?' on':''),role:'button',tabindex:'0','data-z':k,onclick:e=>{e.stopPropagation();pick(k)},onkeydown:e=>{if(e.key==='Enter')pick(k)}},h('span',{class:'z-tag'},label),...kids);
+const fld=(lbl,val,on,o={})=>h('label',{class:'ivd-f'},h('span',null,lbl),o.area?h('textarea',{class:'input',rows:String(o.rows||2),value:val||'',placeholder:o.ph||'',oninput:e=>on(e.target.value)}):h('input',{class:'input',type:o.type||'text',value:val??'',placeholder:o.ph||'',step:o.step,min:o.min,inputmode:o.im,oninput:e=>on(e.target.value)}));
+const two=(...k)=>h('div',{class:'ivd-two'},...k);
+/* brand picker used by invoices and contracts */
+function brandPicker(curName,onPick){const list=brandsAll();
+  const sel=h('select',{class:'input',onchange:e=>{const v=e.target.value;if(v==='__new'){onPick({name:'',company:''},null);return}const b=list[Number(v)];onPick(b&&!b._auto?brandSnap(b):{name:b.name,company:b.name,email:b.email||''},b&&b.id||null)}},
+    h('option',{value:''},curName?'Change brand…':'Pick a saved brand…'),...list.map((b,i)=>h('option',{value:String(i)},b.company&&b.company!==b.name?b.name+' · '+b.company:b.name)),h('option',{value:'__new'},'+ A new brand'));
+  return h('label',{class:'ivd-f'},h('span',null,'Brand'),sel)}
+/* ---------- invoice: data ---------- */
+function invSnapTo(i){if(i.to)return i.to;const b=brandFor(i.client);const s=b?brandSnap(b):{};return {company:s.company||i.client||'',name:i.client||s.name||'',contact:i.contactName||s.contact||'',email:i.clientEmail||s.email||'',address:s.address||'',vat:s.vat||''}}
+function invFromDeal(c){const t=ymd();const b=c?brandFor(c.brand):null;const m=invMe();const days=Number(b&&b.payDays)||m.terms||30;
+  const del=c&&typeof findDeliverables==='function'?findDeliverables(c.deliverables||''):{};const fee=c?(c.feeConfirmed??c.feeProposed??''):'';
+  const keys=Object.entries(del);let items;
+  if(keys.length===1){const [k,n]=keys[0];items=[{name:'Instagram '+(k==='Story'?'Stories':k==='Photos'?'photos':k+'s').replace('Instagram TikToks','TikTok videos'),detail:c.campaign||'',qty:n,price:fee!==''?Math.round(Number(fee)/n*100)/100:''}]}
+  else items=[{name:c?(c.campaign||c.brand+' campaign'):'',detail:c?(c.deliverables||''):'',qty:1,price:fee}];
+  const to=b?brandSnap(b):{company:c?.brand||'',name:c?.brand||'',contact:'',email:c?.contactEmail||'',address:'',vat:''};
+  return {number:nextInvoiceNumber(),status:'Draft',issued:t,due:addDays(t,days),currency:(b&&b.currency)||c?.currency||defCur(),client:to.name||to.company,clientEmail:to.email,to,brandId:b?b.id:null,items,campaignId:c?.id||null,notes:''}}
+/* ---------- invoice: the paper ---------- */
+function invoicePaper(inv,sel,pick){const me=invMe();const to=inv.to||{};const cur=inv.currency||defCur();const items=invItems(inv);const total=invTotal(items);
+  const ph=(v,p)=>v?v:h('span',{class:'ph'},p);
+  return h('div',{class:'paper inv-paper',onclick:()=>pick(null)},
+    h('div',{class:'p-top'},
+      zone('to',sel,pick,'Billed to · the brand',h('div',{class:'p-k'},'Billed to'),h('b',null,ph(to.company||to.name,'Brand name')),to.contact||to.email?h('div',null,[to.contact,to.email].filter(Boolean).join(' · ')):null,to.address?h('div',{class:'pre'},to.address):h('div',null,ph('','Their address')),to.vat?h('div',null,'VAT '+to.vat):null),
+      zone('me',sel,pick,'From · you',h('div',{class:'p-k'},'From'),h('b',null,ph(me.name,'Your name')),me.addr?h('div',{class:'pre'},me.addr):h('div',null,ph('','Your address')),me.phone?h('div',null,me.phone):null,me.email?h('div',null,me.email):null)),
+    h('div',{class:'p-title'},'Invoice'),
+    zone('dates',sel,pick,'Number and dates',h('div',{class:'p-no'},'NO. '+(inv.number||'')),h('div',{class:'p-dates'},h('span',null,'ISSUED ',h('b',null,fmtLong(inv.issued)||'—')),h('span',null,'DUE ',h('b',null,fmtLong(inv.due)||'—')))),
+    zone('items',sel,pick,'Deliverables and prices',h('div',{class:'p-tbl'},h('div',{class:'p-th'},h('span',null,'Deliverables'),h('span',null,'Qty'),h('span',null,'Price'),h('span',null,'Total')),
+      ...items.map(x=>h('div',{class:'p-tr'},h('span',null,h('b',null,ph(x.name,'What you made')),x.detail?h('small',null,x.detail):null),h('span',null,String(x.qty??1)),h('span',null,money(x.price||0,cur)),h('span',null,money((Number(x.qty)||0)*(Number(x.price)||0),cur)))),
+      h('div',{class:'p-tot'},h('div',null,h('span',null,'Subtotal'),h('span',null,money(total,cur))),h('div',{class:'big'},h('span',null,'Total'),h('span',null,money(total,cur)))))),
+    zone('bank',sel,pick,'How they pay you',h('div',{class:'p-k'},'Pay by bank transfer'+(me.bankCur?' · '+me.bankCur:'')),me.bank.length?h('div',{class:'p-bank'},...me.bank.map(([k,v])=>h('div',null,h('span',null,k),h('span',null,v)))):h('div',null,ph('','Paste your bank details once')),h('div',{class:'p-terms'},(me.terms?'Payment due within '+me.terms+' days. ':'')+'Reference '+(inv.number||'')),inv.notes?h('div',{class:'p-terms'},inv.notes):null),
+    zone('sig',sel,pick,'Signature',h('div',{class:'p-thanks'},'Thank you'),h('div',{class:'p-sig'},me.sign||me.name||'Your name')))}
+/* ---------- invoice: the side panel ---------- */
+function invoicePanel(inv,sel,redraw,saveMe){const me=invMe();const m={...(S.settings.invMe||{})};const setMe=(k,v)=>{m[k]=v;S.settings.invMe={...(S.settings.invMe||{}),[k]:v};saveMe();redraw()};
+  const to=inv.to=inv.to||{};const setTo=(k,v)=>{to[k]=v;if(k==='name'||k==='company')inv.client=to.name||to.company;if(k==='email')inv.clientEmail=v;if(k==='contact')inv.contactName=v;redraw()};
+  const H=(t,sub)=>[h('div',{class:'ive-h'},t),sub?h('p',{class:'ive-sub'},sub):null];
+  if(sel==='to')return [...H('Billed to','The brand you are sending this to.'),brandPicker(to.name,(snap,id)=>{inv.to={...snap};inv.brandId=id;inv.client=snap.name||snap.company;inv.clientEmail=snap.email||'';inv.contactName=snap.contact||'';const b=id&&(S.brands||[]).find(x=>x.id===id);if(b&&b.currency)inv.currency=b.currency;redraw();EDIT.drawPanel()}),
+    two(fld('Brand name',to.name,v=>setTo('name',v)),fld('Company (legal name)',to.company,v=>setTo('company',v))),two(fld('Contact',to.contact,v=>setTo('contact',v)),fld('Email',to.email,v=>setTo('email',v.trim()),{type:'email'})),fld('Address',to.address,v=>setTo('address',v),{area:1,ph:'Street\nPostcode, City, Country'}),fld('VAT or tax number',to.vat,v=>setTo('vat',v),{ph:'Optional'}),h('p',{class:'ive-sub'},'Saved to this brand, so next time it fills itself in.')];
+  if(sel==='me')return [...H('From','You. Saved privately in your account for every invoice.'),fld('Your name',me.name,v=>setMe('name',v)),fld('Address',me.addr,v=>setMe('addr',v),{area:1,ph:'Street, apartment\nCity, State ZIP'}),two(fld('Phone',me.phone,v=>setMe('phone',v),{type:'tel'}),fld('Email',me.email,v=>setMe('email',v),{type:'email'}))];
+  if(sel==='dates')return [...H('Number and dates'),fld('Invoice number',inv.number,v=>{inv.number=v;redraw()}),two(fld('Issued',inv.issued,v=>{inv.issued=v;redraw()},{type:'date'}),fld('Due',inv.due,v=>{inv.due=v;redraw()},{type:'date'}))];
+  if(sel==='items'){inv.items=invItems(inv);const box=h('div',{class:'ive-lines'});
+    const draw=()=>box.replaceChildren(...inv.items.map((x,k)=>h('div',{class:'ive-line'},h('input',{class:'input',value:x.name||'',placeholder:'e.g. Instagram Reel',oninput:e=>{x.name=e.target.value;redraw()}}),h('input',{class:'input ive-det',value:x.detail||'',placeholder:'Details (optional)',oninput:e=>{x.detail=e.target.value;redraw()}}),
+      h('div',{class:'ive-nums'},h('label',null,h('span',null,'Qty'),h('input',{type:'number',min:'0',step:'1',inputmode:'numeric',value:x.qty??1,oninput:e=>{x.qty=e.target.value;redraw()}})),h('label',null,h('span',null,'Price'),h('input',{type:'number',min:'0',step:'0.01',inputmode:'decimal',value:x.price??'',placeholder:'0',oninput:e=>{x.price=e.target.value;redraw()}})),
+        inv.items.length>1?h('button',{class:'iv-x',type:'button','aria-label':'Remove line',onclick:()=>{inv.items.splice(k,1);draw();redraw()}},'×'):null))),
+      h('button',{class:'iv-addl',type:'button',onclick:()=>{inv.items.push({name:'',detail:'',qty:1,price:''});draw();redraw();box.querySelector('.ive-line:last-of-type input')?.focus()}},'+ Add a line'));
+    draw();return [...H('Deliverables','What you made and the price. The total adds itself.'),box,h('label',{class:'ivd-f'},h('span',null,'Currency'),h('select',{class:'input',onchange:e=>{inv.currency=e.target.value;redraw()}},[...new Set([inv.currency||defCur(),...CURRENCIES])].map(c=>h('option',{value:c,selected:c===(inv.currency||defCur())},c))))]}
+  if(sel==='bank'){let bank=me.bank.map(r=>[...r]);const rows=h('div',{class:'ivd-rows'});
+    const commit=()=>setMe('bank',bank.filter(r=>r[0].trim()||r[1].trim()));
+    const draw=()=>rows.replaceChildren(...bank.map((r,k)=>h('div',{class:'ivd-row'},h('input',{class:'input ivd-k',value:r[0],placeholder:'Label',oninput:e=>{bank[k][0]=e.target.value;commit()}}),h('input',{class:'input',value:r[1],placeholder:'Value',oninput:e=>{bank[k][1]=e.target.value;commit()}}),h('button',{class:'iv-x',type:'button','aria-label':'Remove',onclick:()=>{bank.splice(k,1);commit();draw()}},'×'))),h('button',{class:'iv-addl',type:'button',onclick:()=>{bank.push(['','']);draw()}},'+ Add a line'));draw();
+    return [...H('How they pay you','Your bank details. Saved privately, used on every invoice.'),h('textarea',{class:'input',rows:'3',placeholder:'Paste your bank details here (Revolut, Wise, your bank). Daylo fills the lines.',oninput:e=>{const p=parseBank(e.target.value);if(p.rows.length){bank=p.rows;commit();if(p.cur)setMe('bankCur',p.cur);draw();e.target.value='';toast('Filled in. Check the lines.')}}}),fld('Account',me.bankCur,v=>setMe('bankCur',v),{ph:'e.g. US Dollar, Euro'}),rows,two(fld('Days to pay',me.terms,v=>setMe('terms',Number(v)||0),{type:'number',min:'0'}),h('span')),fld('Note on the invoice',inv.notes,v=>{inv.notes=v;redraw()},{area:1,ph:'Optional, e.g. Thank you for a lovely campaign!'})]}
+  if(sel==='sig')return [...H('Signature','Written by hand in your name.'),fld('Signed as',me.sign||me.name,v=>setMe('sign',v)),h('div',{class:'ive-sigprev'},me.sign||me.name||'')];
+  // nothing selected: the overview
+  const st=h('div',{class:'iv-st'},['Draft','Sent','Paid'].map(s=>h('button',{type:'button',class:(inv.status||'Draft')===s?'on':'',onclick:()=>{inv.status=s;if(s==='Paid'&&!inv.paidOn)inv.paidOn=ymd();EDIT.drawPanel()}},s)));
+  const todo=[!(to.company||to.name)?['to','Who it’s for']:null,!me.name||!me.addr?['me','Your name and address']:null,!invTotal(invItems(inv))?['items','Deliverables and prices']:null,!me.bank.length?['bank','How they pay you']:null].filter(Boolean);
+  return [h('div',{class:'ive-h'},'Edit on the page'),h('p',{class:'ive-sub'},'Click any part of the invoice to change it. Billed to is the brand, From is you.'),
+    todo.length?h('div',{class:'ive-todo'},h('div',{class:'p-k'},'Still to fill in'),...todo.map(([k,l])=>h('button',{class:'ive-todo-i',onclick:()=>EDIT.select(k)},l,icon('ext')))):h('p',{class:'ive-ok'},icon('check'),'Ready to send.'),
+    h('div',{class:'iv-strow'},h('span',{class:'p-k'},'Status'),st),
+    inv.id?h('button',{class:'iv-del',type:'button',onclick:e=>confirmDelete(e.currentTarget,async()=>{await removeDoc('invoices',inv.id);EDIT.layer.remove();document.body.classList.remove('ive-open');toast('Invoice deleted.');if(page==='money')renderMain()})},'Delete invoice'):null]}
+let EDIT=null;
+function openInvoiceEditor(i0,fromDeal){closeDrawer();
+  const inv=i0?{...i0,items:invItems(i0),to:invSnapTo(i0)}:invFromDeal(fromDeal||null);
+  let meT=null;const saveMe=()=>{clearTimeout(meT);meT=setTimeout(()=>saveSettings({invMe:{...(S.settings.invMe||{})}}),500)};
+  const doSave=async quiet=>{inv.items=invItems(inv).map(x=>({name:(x.name||'').trim(),detail:(x.detail||'').trim(),qty:Number(x.qty)||0,price:Number(x.price)||0})).filter(x=>x.name||x.price);if(!inv.items.length)inv.items=[{name:'',detail:'',qty:1,price:0}];
+    inv.amount=invTotal(inv.items);inv.description=inv.items.map(x=>(x.qty>1?x.qty+' × ':'')+x.name).filter(Boolean).join(', ').slice(0,120);
+    if(!(inv.to&&(inv.to.company||inv.to.name))){if(!quiet)toast('Pick who the invoice is for.');EDIT.select('to');return null}
+    inv.client=inv.to.name||inv.to.company;inv.clientEmail=inv.to.email||'';inv.contactName=inv.to.contact||'';
+    try{const bid=await saveBrandFrom(inv.to,inv.brandId);if(bid)inv.brandId=bid}catch(e){console.error(e)}
+    const rec={...inv};const id=await save('invoices',rec);inv.id=id;
+    if(rec.campaignId){const cc=S.campaigns.find(x=>x.id===rec.campaignId);const ps=rec.status==='Paid'?'Paid':rec.status==='Sent'?'Invoiced':null;if(cc&&ps&&cc.payStatus!==ps)await save('campaigns',{...cc,payStatus:ps})}
+    if(!quiet)toast('Invoice saved.');return id};
+  const dirty={v:false};
+  const pdfB=h('button',{class:'btn',onclick:async()=>{if(!(await doSave(true)))return;pdfB.classList.add('busy');try{await saveInvoicePdf(inv)}finally{pdfB.classList.remove('busy')}}},icon('download'),'PDF');
+  const mailB=h('button',{class:'btn primary',onclick:async()=>{if(!(await doSave(true)))return;if(!inv.clientEmail){toast('Add their email in Billed to.');EDIT.select('to');return}mailB.classList.add('busy');try{EDIT.layer.remove();document.body.classList.remove('ive-open');await emailInvoicePdf(inv)}finally{mailB.classList.remove('busy')}}},icon('send'),'Email it');
+  const saveB=h('button',{class:'btn ghost',onclick:async()=>{if(await doSave())EDIT.close()}},'Save');
+  EDIT=editorShell(h('span',null,'Invoice ',h('em',null,inv.client?'for '+inv.client:'')),(sel,pick)=>invoicePaper(inv,sel,pick),(sel,redraw)=>invoicePanel(inv,sel,()=>{redraw();EDIT&&EDIT.setTitle(['Invoice ',h('em',null,inv.client?'for '+inv.client:'')])},saveMe),[saveB,pdfB,mailB],async()=>{if(inv.id||invTotal(invItems(inv))>0)await doSave(true);return true});
+  if(!(inv.to&&(inv.to.company||inv.to.name)))EDIT.select('to')}
+openInvoice=function(i,c){openInvoiceEditor(i||null,c||null)};
+/* the PDF matches the page: add the From label */
+invoiceCanvas=(function(prev){return async function(inv,scale){const inv2={...inv};if(inv.to){inv2.client=inv.to.company||inv.to.name;inv2.contactName=inv.to.contact||'';inv2.clientEmail=inv.to.email||''}return prev(inv2,scale)}})(invoiceCanvas);
+/* ---------- contracts ---------- */
+const CT_DEF={productBy:'',draftDays:7,changes:1,replyDays:2,postDate:'',fee:'',payment:'50% when signed, 50% after posting',usage:'Organic reposting on the brand’s own channels for 30 days. Paid ads need a separate agreement.',exclusivity:'None.',cancellation:'If the brand cancels after the product is received, the first 50% is kept by the creator.'};
+function ctFromDeal(c){const b=c?brandFor(c.brand):null;const to=b?brandSnap(b):{company:c?.brand||'',name:c?.brand||'',contact:'',email:c?.contactEmail||'',address:'',vat:''};
+  return {status:'Draft',date:ymd(),to,brandId:b?b.id:null,campaignId:c?.id||null,currency:(b&&b.currency)||c?.currency||defCur(),f:{...CT_DEF,deliverables:c?.deliverables||'',postDate:c?.postingDate||c?.dueDate||'',fee:c?(c.feeConfirmed??c.feeProposed??''):''},w:{}}}
+function ctClauses(k){const f=k.f||{};const me=invMe();const to=k.to||{};const cur=k.currency||defCur();const fee=f.fee!==''&&f.fee!=null?money(f.fee,cur):'[fee]';
+  const d=v=>v?fmtLong(v):'[date]';
+  return [['parties','The parties',`${to.company||to.name||'[Brand]'}${to.address?', '+String(to.address).replace(/\n/g,', '):''} (“the Brand”), and ${me.name||'[your name]'}${me.addr?', '+String(me.addr).replace(/\n/g,', '):''} (“the Creator”).`],
+    ['deliverables','Deliverables',`${f.deliverables||'[what you will make]'}${to.name?', tagging '+to.name:''}.`],
+    ['timeline','Timeline',[f.productBy?`The Brand sends the product by ${d(f.productBy)}.`:null,`The Creator shares a draft within ${f.draftDays||7} days of receiving the product${f.productBy?'':' or the brief'}.`,`${f.changes==0?'No changes are included.':(f.changes||1)+' round'+((f.changes||1)>1?'s':'')+' of changes, answered within '+(f.replyDays||2)+' days.'}`,`Posting date: ${d(f.postDate)}.`].filter(Boolean).join(' ')],
+    ['fee','Fee and payment',`${fee} in total. ${f.payment||''}. Invoices are paid within ${me.terms||30} days.`.replace('..','.')],
+    ['usage','Usage rights',f.usage||''],['exclusivity','Exclusivity',f.exclusivity||''],['cancellation','Cancellation',f.cancellation||'']].map(([key,t,txt])=>[key,t,(k.w&&k.w[key])||txt])}
+function contractPaper(k,sel,pick){const me=invMe();const to=k.to||{};
+  return h('div',{class:'paper ct-paper',onclick:()=>pick(null)},h('div',{class:'p-title ct'},'Collaboration ',h('em',null,'Agreement')),
+    h('div',{class:'p-no'},((to.name||to.company||'Brand')+' × '+(me.name||'You')).toUpperCase()+' · '+(fmtLong(k.date)||'').toUpperCase()),
+    ...ctClauses(k).map(([key,t,txt])=>zone(key,sel,pick,t,h('div',{class:'p-k'},t),h('div',{class:'ct-txt'},txt))),
+    zone('sig',sel,pick,'Signatures',h('div',{class:'ct-sigs'},h('div',null,h('div',{class:'p-sig sm'},me.sign||me.name||''),h('div',{class:'ct-rule'}),h('small',null,(me.name||'Creator')+' · Creator · '+fmtLong(k.date))),h('div',null,k.status==='Signed'?h('div',{class:'ct-signed'},'Signed'):h('div',{class:'p-sig sm'},' '),h('div',{class:'ct-rule'}),h('small',null,(to.company||to.name||'Brand')+(k.status==='Signed'?' · signed '+fmtLong(k.signedAt):''))))))}
+function contractPanel(k,sel,redraw){const f=k.f=k.f||{...CT_DEF};k.w=k.w||{};const set=(key,v)=>{f[key]=v;redraw()};
+  const H=(t,sub)=>[h('div',{class:'ive-h'},t),sub?h('p',{class:'ive-sub'},sub):null];
+  const wording=key=>{const gen=ctClauses({...k,w:{}}).find(x=>x[0]===key)[2];return h('details',{class:'ive-word',open:!!k.w[key]},h('summary',null,'Change the exact words'),h('textarea',{class:'input',rows:'4',value:k.w[key]||gen,oninput:e=>{k.w[key]=e.target.value===gen?'':e.target.value;redraw()}}),k.w[key]?h('button',{class:'iv-addl',type:'button',onclick:()=>{delete k.w[key];EDIT.drawPanel();redraw()}},'Back to the standard words'):null)};
+  if(sel==='parties'){const to=k.to=k.to||{};return [...H('The parties','The brand and you.'),brandPicker(to.name,(snap,id)=>{k.to={...snap};k.brandId=id;redraw();EDIT.drawPanel()}),
+    h('label',{class:'ivd-f'},h('span',null,'Fill in from a deal'),h('select',{class:'input',onchange:e=>{const c=S.campaigns.find(x=>x.id===e.target.value);if(!c)return;const n=ctFromDeal(c);Object.assign(k,{to:n.to,brandId:n.brandId,campaignId:c.id,currency:n.currency});Object.assign(f,{deliverables:n.f.deliverables||f.deliverables,postDate:n.f.postDate||f.postDate,fee:n.f.fee!==''?n.f.fee:f.fee});redraw();EDIT.drawPanel()}},h('option',{value:''},'Pick a deal…'),...S.campaigns.map(c=>h('option',{value:c.id,selected:c.id===k.campaignId},c.brand+(c.campaign?' · '+c.campaign:''))))),
+    two(fld('Brand name',k.to.name,v=>{k.to.name=v;redraw()}),fld('Company (legal name)',k.to.company,v=>{k.to.company=v;redraw()})),fld('Brand address',k.to.address,v=>{k.to.address=v;redraw()},{area:1}),two(fld('Contact',k.to.contact,v=>{k.to.contact=v;redraw()}),fld('Email',k.to.email,v=>{k.to.email=v.trim();redraw()},{type:'email'})),
+    fld('Date',k.date,v=>{k.date=v;redraw()},{type:'date'}),wording('parties')]}
+  if(sel==='deliverables')return [...H('Deliverables','What you will make.'),fld('Deliverables',f.deliverables,v=>set('deliverables',v),{area:1,ph:'e.g. 1 Instagram Reel (60–90 sec) and 3 Stories with link sticker'}),wording('deliverables')];
+  if(sel==='timeline')return [...H('Timeline','How many days you take, and when it goes live.'),two(fld('Product arrives by',f.productBy,v=>set('productBy',v),{type:'date'}),fld('Draft within (days)',f.draftDays,v=>set('draftDays',Number(v)||0),{type:'number',min:'0'})),two(fld('Rounds of changes',f.changes,v=>set('changes',Number(v)),{type:'number',min:'0'}),fld('Reply within (days)',f.replyDays,v=>set('replyDays',Number(v)||0),{type:'number',min:'0'})),fld('Posting date',f.postDate,v=>set('postDate',v),{type:'date'}),wording('timeline')];
+  if(sel==='fee')return [...H('Fee and payment'),two(fld('Fee',f.fee,v=>set('fee',v),{type:'number',min:'0',step:'0.01',im:'decimal'}),h('label',{class:'ivd-f'},h('span',null,'Currency'),h('select',{class:'input',onchange:e=>{k.currency=e.target.value;redraw()}},[...new Set([k.currency||defCur(),...CURRENCIES])].map(c=>h('option',{value:c,selected:c===(k.currency||defCur())},c))))),
+    h('label',{class:'ivd-f'},h('span',null,'When they pay'),h('select',{class:'input',onchange:e=>set('payment',e.target.value)},['50% when signed, 50% after posting','100% after posting','100% before starting'].map(o=>h('option',{value:o,selected:o===f.payment},o)))),wording('fee')];
+  if(['usage','exclusivity','cancellation'].includes(sel)){const L={usage:'Usage rights',exclusivity:'Exclusivity',cancellation:'Cancellation'}[sel];return [...H(L),fld(L,f[sel],v=>set(sel,v),{area:1,rows:4})]}
+  if(sel==='sig'){const me=invMe();return [...H('Signatures','Your name is signed by hand. The brand signs their copy and sends it back.'),fld('Signed as',me.sign||me.name,v=>{S.settings.invMe={...(S.settings.invMe||{}),sign:v};saveSettings({invMe:S.settings.invMe});redraw()}),h('div',{class:'ive-sigprev'},me.sign||me.name||''),
+    k.status==='Sent'?h('button',{class:'btn primary',onclick:()=>{k.status='Signed';k.signedAt=ymd();redraw();EDIT.drawPanel();toast('Signed by both. Deal locked in.')}},icon('check'),'They signed it'):null]}
+  const st=h('div',{class:'iv-st'},['Draft','Sent','Signed'].map(s=>h('button',{type:'button',class:(k.status||'Draft')===s?'on':'',onclick:()=>{k.status=s;if(s==='Signed'&&!k.signedAt)k.signedAt=ymd();redraw();EDIT.drawPanel()}},s)));
+  return [h('div',{class:'ive-h'},'Edit on the page'),h('p',{class:'ive-sub'},'Click any part of the contract to change it. Numbers update the words for you.'),
+    h('div',{class:'iv-strow'},h('span',{class:'p-k'},'Status'),st),h('p',{class:'ive-legal'},'A friendly starting template, not legal advice. For big deals, have it checked.'),
+    k.id?h('button',{class:'iv-del',type:'button',onclick:e=>confirmDelete(e.currentTarget,async()=>{await removeDoc('contracts',k.id);EDIT.layer.remove();document.body.classList.remove('ive-open');toast('Contract deleted.');if(page==='money')renderMain()})},'Delete contract'):null]}
+async function contractCanvas(k,scale){scale=scale||2;const W=794,PAD=74;const me=invMe();try{await Promise.all(['400 40px Lora','italic 400 40px Lora','400 12px Inter','600 10px Inter','400 34px "La Belle Aurore"'].map(f=>document.fonts.load(f)))}catch{}
+  const mc=document.createElement('canvas').getContext('2d');const wrap=(t,font,mw)=>{mc.font=font;const out=[];String(t||'').split('\n').forEach(p=>{let line='';p.split(/\s+/).forEach(w=>{const x=line?line+' '+w:w;if(mc.measureText(x).width>mw&&line){out.push(line);line=w}else line=x});out.push(line)});return out};
+  const cl=ctClauses(k).map(([a,t,txt])=>[t,wrap(txt,'400 12px Inter',W-PAD*2)]);const H=Math.max(1123,200+cl.reduce((s,c)=>s+42+c[1].length*19,0)+200);
+  const cv=document.createElement('canvas');cv.width=Math.round(W*scale);cv.height=Math.round(H*scale);const c=cv.getContext('2d');c.scale(scale,scale);c.fillStyle='#FAFAF9';c.fillRect(0,0,W,H);
+  const T=(t,x,y,f,col,al,ls)=>{c.font=f;c.fillStyle=col||'#222120';c.textAlign=al||'left';try{c.letterSpacing=(ls||0)+'px'}catch{}c.fillText(t,x,y);try{c.letterSpacing='0px'}catch{}};
+  c.font='400 40px Lora';const w1=c.measureText('Collaboration ').width;c.font='italic 400 40px Lora';const w2=c.measureText('Agreement').width;let x=W/2-(w1+w2)/2;T('Collaboration ',x,100,'400 40px Lora','#222120');T('Agreement',x+w1,100,'italic 400 40px Lora','#6B625B');
+  const to=k.to||{};T(((to.name||to.company||'Brand')+' × '+(me.name||'')+' · '+fmtLong(k.date)).toUpperCase(),W/2,128,'500 9.5px Inter','#857A70','center',2.4);
+  let y=170;cl.forEach(([t,ls])=>{y+=24;T(t.toUpperCase(),PAD,y,'600 9.5px Inter','#857A70','left',1.6);ls.forEach(l=>{y+=19;T(l,PAD,y,'400 12px Inter','#333')});y+=4});
+  y+=70;const cw=(W-PAD*2-50)/2;[[me.sign||me.name||'',(me.name||'Creator')+' · Creator · '+fmtLong(k.date),true],[k.status==='Signed'?'':'',(to.company||to.name||'Brand')+(k.status==='Signed'?' · signed '+fmtLong(k.signedAt):''),false]].forEach(([sig,lab,mine],i)=>{const x0=PAD+i*(cw+50);if(mine)T(sig,x0,y-8,'400 34px "La Belle Aurore"','#222120');c.fillStyle='#222120';c.fillRect(x0,y,cw,1);T(lab,x0,y+18,'400 10.5px Inter','#857A70')});
+  return cv}
+function openContractEditor(k0,fromDeal){closeDrawer();const k=k0?JSON.parse(JSON.stringify(k0)):ctFromDeal(fromDeal||null);k.f={...CT_DEF,...(k.f||{})};k.w=k.w||{};
+  const doSave=async quiet=>{if(!(k.to&&(k.to.company||k.to.name))){if(!quiet)toast('Pick the brand first.');EDIT.select('parties');return null}try{const bid=await saveBrandFrom(k.to,k.brandId);if(bid)k.brandId=bid}catch{}const id=await save('contracts',{...k});k.id=id;if(!quiet)toast('Contract saved.');return id};
+  const file=()=>'Collaboration agreement - '+((k.to&&(k.to.name||k.to.company))||'Brand')+' x '+(invMe().name||'Creator')+'.pdf';
+  const pdfB=h('button',{class:'btn',onclick:async()=>{if(!(await doSave(true)))return;pdfB.classList.add('busy');try{const blob=pdfFromCanvas(await contractCanvas(k));const u=URL.createObjectURL(blob);const f=new File([blob],file(),{type:'application/pdf'});
+    if(/iPhone|iPad|Android/i.test(navigator.userAgent)&&navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f],title:file()}).catch(()=>{});else{const a=h('a',{href:u,download:file()});document.body.append(a);a.click();a.remove()}toast('Contract PDF ready.')}finally{pdfB.classList.remove('busy')}}},icon('download'),'PDF');
+  const sendB=h('button',{class:'btn primary',onclick:async()=>{if(!(await doSave(true)))return;if(!k.to.email){toast('Add their email in The parties.');EDIT.select('parties');return}sendB.classList.add('busy');
+    try{const blob=pdfFromCanvas(await contractCanvas(k));const b64=await blobB64(blob);if(k.status==='Draft'||!k.status){k.status='Sent';k.sentAt=ymd();await save('contracts',{...k})}EDIT.layer.remove();document.body.classList.remove('ive-open');const me=invMe();
+      openComposer({to:k.to.email,subject:'Collaboration agreement · '+(k.to.name||k.to.company)+' × '+(me.name||''),body:[(k.to.contact?'Hi '+k.to.contact.split(' ')[0]+',':'Hi '+(k.to.name||'')+' team,'),'','Attached is our collaboration agreement, already signed on my side. Could you sign it and send it back?','','Thank you!',me.sign||me.name||''].join('\n'),attach:[{name:file(),type:'application/pdf',b64,size:blob.size,blob}]})}finally{sendB.classList.remove('busy')}}},icon('send'),'Send to sign');
+  const saveB=h('button',{class:'btn ghost',onclick:async()=>{if(await doSave())EDIT.close()}},'Save');
+  EDIT=editorShell(h('span',null,'Contract ',h('em',null,k.to&&k.to.name?'for '+k.to.name:'')),(sel,pick)=>contractPaper(k,sel,pick),(sel,redraw)=>contractPanel(k,sel,()=>{redraw();EDIT&&EDIT.setTitle(['Contract ',h('em',null,k.to&&k.to.name?'for '+k.to.name:'')])}),[saveB,pdfB,sendB],async()=>{if(k.to&&(k.to.company||k.to.name))await doSave(true);return true});
+  if(!(k.to&&(k.to.company||k.to.name)))EDIT.select('parties')}
+/* ---------- navigation: Money tab at the end; the logo is just a logo ---------- */
+renderTabbar=(function(prev){return function(){prev();try{const tb=document.getElementById('tabbar');if(!tb||!tb.classList.contains('tb5'))return;
+  const b=h('button',{class:'tab5','aria-label':'Money','aria-current':page==='money'?'page':null,onclick:()=>{closeDrawer();go('money')}},tbSvg(TB_ICONS.money));tb.append(b);
+  const tabs=['today','inbox','schedule','notes','money'];const idx=tabs.indexOf(page);const pill=tb.querySelector('.tb-pill');if(pill){const setI=()=>{pill.classList.toggle('off',idx<0);pill.style.setProperty('--i',Math.max(0,idx))};setI();requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(setI)))}}catch(e){console.error(e)}}})(renderTabbar);
+dkRail=(function(prev){return function(){const r=prev();try{const logo=r.querySelector('.dk-logo');if(logo){const s=h('span',{class:'dk-logo dk-logo-static','aria-hidden':'true'},...logo.childNodes);logo.replaceWith(s)}
+  const items=r.querySelectorAll('.dk-ri:not(.dk-menu)');const last=[...r.querySelectorAll('.dk-ri')].find(x=>!x.classList.contains('dk-menu')&&x.getAttribute('aria-label')==='Notes');
+  const m=h('button',{class:'dk-ri'+(page==='money'?' on':''),'aria-label':'Money',title:'Money','aria-current':page==='money'?'page':null,onclick:()=>{S.campStages=null;go('money')}},tbSvg(TB_ICONS.money));if(last)last.after(m)}catch(e){console.error(e)}return r}})(dkRail);
+document.addEventListener('click',e=>{const b=e.target.closest('.topbar .brand,.top .brand,header .brand');if(b&&!document.body.classList.contains('onb')){e.preventDefault();e.stopImmediatePropagation()}},true);
+moreMenu=(function(prev){return function(){prev();try{const s=document.querySelector('#overlay .sheet, #overlay .drawer');if(!s)return;s.querySelectorAll('button').forEach(b=>{if(/Deals & money/.test(b.textContent)){const l=[...b.querySelectorAll('*')].find(x=>x.childNodes.length===1&&x.textContent==='Deals & money');if(l)l.textContent='Deals'}})}catch{}}})(moreMenu);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+@media (max-width:900px){#tabbar.tb5{grid-template-columns:repeat(5,1fr)!important}#tabbar.tb5 .tb-pill{width:calc((100% - 24px)/5 - 10px)!important;left:calc(12px + 5px + (100% - 24px)/5 * var(--i))!important}#tabbar.tb5 .tbi svg{width:30px!important;height:30px!important}}
+.dk-logo-static{cursor:default}
+.mn{max-width:1180px;margin:0 auto;padding-bottom:110px}
+.mn-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:8px 0 18px}
+.mn-h1{font:400 44px/1 Lora,Georgia,serif;margin:0}.mn-h1 em{color:#6B625B}
+.mn-acts{display:flex;gap:8px}
+.mn-stats{display:flex;gap:34px;flex-wrap:wrap;margin-bottom:20px}.mn-stat b{display:block;font:400 32px/1.1 Lora,Georgia,serif}.mn-stat small,.p-k{font:600 9.5px var(--f-body);letter-spacing:.16em;text-transform:uppercase;color:#857A70}
+.mn-grid{display:grid;grid-template-columns:1.45fr 1fr;gap:18px}.mn-col{display:flex;flex-direction:column;gap:18px}
+.mn-sec{background:#FAFAF9;border:1px solid #ECE5DC;border-radius:22px;padding:16px 20px}
+.mn-sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}.mn-sh h3{margin:0;font:400 22px Lora,Georgia,serif}
+.mn-add{border:0;background:#F4F0EA;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;cursor:pointer;color:#222120}
+.mn-note{margin:0 0 6px;font-size:12.5px;color:#857A70}
+.mn-row{display:flex;align-items:center;gap:12px;width:100%;border:0;border-top:1px solid #ECE5DC;background:none;padding:12px 0;text-align:left;cursor:pointer;font:inherit;color:#222120}.mn-sh+.mn-row,.mn-note+.mn-row{border-top:0}
+.mn-av{width:36px;height:36px;border-radius:50%;background:#ECE5DC;display:grid;place-items:center;font:600 12px var(--f-body);flex:none}.mn-av.big{width:52px;height:52px;font-size:16px}
+.mn-tx{display:flex;flex-direction:column;min-width:0;flex:1}.mn-tx b{font:500 14.5px var(--f-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mn-tx small{font-size:12.5px;color:#857A70;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mn-r{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none}.mn-amt{font:400 18px Lora,Georgia,serif}
+.mn-pill{font:500 11px var(--f-body);padding:3px 10px;border-radius:999px;background:#ECE5DC;white-space:nowrap}.mn-pill.paid,.mn-pill.signed{background:#222120;color:#FAFAF9}.mn-pill.draft{background:transparent;box-shadow:inset 0 0 0 1px #DCD7D0;color:#6F6C67}.mn-pill.late{background:#222120;color:#FAFAF9}
+.mn-empty p{margin:6px 0;color:#857A70;font-size:13.5px}.mn-more{border:0;background:none;font:600 13px var(--f-body);padding:8px 0;cursor:pointer;color:#222120}
+.mn-seg{display:flex;margin:4px auto 12px;width:max-content;background:#F4F0EA;border-radius:999px;padding:4px}.mn-seg button{border:0;background:none;padding:7px 16px;border-radius:999px;font:500 13px var(--f-body);color:#857A70;cursor:pointer}.mn-seg button.on{background:#FAFAF9;color:#222120;font:italic 400 15px Lora,Georgia,serif;box-shadow:0 2px 6px rgba(40,34,28,.1)}
+.mn:not(.mn-wide) .mn-sec{border:0;padding:0;background:none}.mn:not(.mn-wide) .mn-sh h3{display:none}.mn:not(.mn-wide) .mn-sh{justify-content:flex-end}
+.mn-deals{display:flex;align-items:center;gap:6px;margin:22px 0 0;border:0;background:none;font:600 13px var(--f-body);color:#6F6C67;cursor:pointer;padding:6px 0}
+@media (max-width:900px){.mn-h1{font-size:34px}.mn-acts{width:100%}.mn-acts .btn{flex:1;justify-content:center}.mn-acts .btn.primary{order:-1}.mn-stats{gap:22px}.mn-stat b{font-size:26px}}
+.br-top{display:flex;align-items:center;gap:12px}.br-name{font:400 26px Lora,Georgia,serif!important}
+/* editor */
+body.ive-open{overflow:hidden}
+.ive{position:fixed;inset:0;z-index:60;background:#F1EEE9;display:flex;flex-direction:column}
+.ive-top{display:flex;align-items:center;gap:12px;padding:12px max(16px,env(safe-area-inset-left)) 12px;padding-top:calc(env(safe-area-inset-top,0px) + 12px);background:#FAFAF9;border-bottom:1px solid #ECE5DC}
+.ive-ttl{flex:1;margin:0;font:400 26px/1.1 Lora,Georgia,serif;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ive-ttl em{color:#6B625B}
+.ive-acts{display:flex;gap:8px}.ive-acts .btn.busy{opacity:.5;pointer-events:none}
+.ive-body{flex:1;display:flex;gap:26px;padding:24px 28px;overflow:auto;min-height:0}
+.ive-paperwrap{flex:1;min-width:0;display:flex;justify-content:center;align-items:flex-start}
+.ive-scale{transform-origin:top left;flex:none}
+.ive-panel{width:380px;flex:none;background:#FAFAF9;border:1px solid #ECE5DC;border-radius:22px;padding:18px 20px;display:flex;flex-direction:column;gap:10px;align-self:flex-start;position:sticky;top:0;max-height:calc(100vh - 140px);overflow:auto}
+.ive-grab{display:none}.ive-done{display:none}
+.ive-h{font:400 22px Lora,Georgia,serif}.ive-sub{margin:0;font-size:12.5px;color:#857A70;line-height:1.45}.ive-legal{margin:0;font-size:12px;color:#857A70}
+.ive-ok{display:flex;align-items:center;gap:8px;margin:4px 0;font:500 14px var(--f-body)}
+.ive-todo{display:flex;flex-direction:column;gap:6px}.ive-todo-i{display:flex;justify-content:space-between;align-items:center;border:0;background:#F4F0EA;border-radius:12px;padding:10px 12px;font:500 14px var(--f-body);cursor:pointer;color:#222120}
+.ive-lines{display:flex;flex-direction:column;gap:12px}.ive-line{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid #ECE5DC}.ive-det{font-size:13px!important}
+.ive-nums{display:flex;gap:8px;align-items:center}.ive-nums label{display:flex;align-items:center;gap:6px;background:#F4F0EA;border-radius:999px;padding:5px 12px}.ive-nums span{font-size:11.5px;color:#857A70}.ive-nums input{border:0;background:transparent;font:500 14px var(--f-body);width:70px;outline:none;color:#222120}
+.ive-sigprev{font:400 40px "La Belle Aurore",cursive;text-align:center;padding:6px 0}
+.ive-word summary{cursor:pointer;font:500 13px var(--f-body);color:#6F6C67;padding:4px 0}
+.paper{width:794px;min-height:1123px;background:#FAFAF9;box-shadow:0 18px 40px rgba(40,34,28,.12),0 0 0 1px #E6E0D8;padding:64px 70px 70px;position:relative;font-family:Inter,var(--f-body);color:#222120;display:flex;flex-direction:column}
+.z{position:relative;border-radius:6px;outline:1.5px dashed rgba(133,122,112,.45);outline-offset:6px;cursor:pointer;transition:outline-color .2s,background .2s}
+.z:hover{outline-color:#857A70}.z.on{outline:2px solid #222120;background:rgba(236,229,220,.45)}
+.z-tag{position:absolute;top:-24px;left:-6px;font:600 9px Inter;letter-spacing:.12em;text-transform:uppercase;background:#222120;color:#FAFAF9;padding:3px 7px;border-radius:6px;opacity:0;pointer-events:none;white-space:nowrap}.z.on .z-tag,.z:hover .z-tag{opacity:1}
+.ph{color:#B3ABA2;font-style:italic}
+.p-top{display:flex;justify-content:space-between;gap:40px;font-size:12px;line-height:1.6;color:#6F6C67}.p-top>.z{max-width:44%}.p-top>.z:last-child{text-align:right}.p-top>.z:last-child .z-tag{left:auto;right:-6px}.p-top b{color:#222120;font-weight:600;font-size:12.5px}.pre{white-space:pre-line}
+.p-title{font:400 64px/1 Lora,Georgia,serif;text-align:center;margin:80px 0 12px}.p-title.ct{font:400 40px/1.1 Lora,Georgia,serif!important;margin:10px 0 10px}.p-title em{color:#6B625B}
+.p-no{text-align:center;font:500 11px Inter;letter-spacing:.24em;color:#857A70}
+.p-dates{display:flex;justify-content:center;gap:40px;margin-top:20px;font-size:12px;color:#6F6C67}.p-dates b{color:#222120;font-weight:500;margin-left:6px}
+.inv-paper>.z[data-z=dates]{align-self:center;padding:2px 10px}
+.p-tbl{margin-top:56px;font-size:13px}.inv-paper>.z[data-z=items]{margin-top:56px}.inv-paper>.z[data-z=items] .p-tbl{margin-top:0}
+.p-th,.p-tr{display:grid;grid-template-columns:1fr 60px 110px 110px;gap:8px}.p-th{font:italic 400 13px Lora,Georgia,serif;color:#857A70;border-bottom:1px solid #DCD7D0;padding-bottom:9px}
+.p-th span:nth-child(2),.p-tr span:nth-child(2){text-align:center}.p-th span:nth-child(n+3),.p-tr span:nth-child(n+3){text-align:right}
+.p-tr{padding:13px 0;border-bottom:1px solid #ECE5DC}.p-tr b{font-weight:500;display:block}.p-tr small{font-size:11.5px;color:#6F6C67}
+.p-tot{margin-left:auto;width:300px;margin-top:14px}.p-tot>div{display:flex;justify-content:space-between;padding:7px 0}.p-tot .big{border-top:1px solid #222120;margin-top:6px;padding-top:12px;font:400 26px Lora,Georgia,serif}
+.inv-paper>.z[data-z=bank]{margin-top:44px;font-size:11.5px;color:#6F6C67;line-height:1.7}
+.p-bank>div{display:grid;grid-template-columns:150px 1fr}.p-bank span:first-child{color:#857A70}.p-terms{margin-top:6px}
+.inv-paper>.z[data-z=sig]{margin-top:auto;align-self:center;text-align:center;padding:4px 30px}
+.p-thanks{font-size:12.5px;color:#6F6C67;margin-top:40px}.p-sig{font:400 46px/1.2 "La Belle Aurore",cursive;color:#222120}.p-sig.sm{font-size:34px;line-height:1;height:38px}
+.ct-paper>.z{margin-top:20px}.ct-paper>.z .p-k{margin-bottom:4px}.ct-txt{font-size:12.5px;line-height:1.65;color:#333}
+.ct-sigs{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:20px}.ct-rule{border-top:1px solid #222120;height:0;margin:2px 0 6px}.ct-sigs small{font-size:10.5px;color:#857A70}.ct-signed{font:600 11px Inter;letter-spacing:.14em;text-transform:uppercase;color:#857A70;height:38px;display:flex;align-items:flex-end;padding-bottom:4px}
+@media (max-width:900px){
+ .ive-top{flex-wrap:wrap;gap:6px 8px}.ive-ttl{font-size:23px}.ive-back{padding:6px 8px;font-size:0;gap:0}.ive-back svg{width:22px;height:22px}.ive-acts{flex-basis:100%}.ive-acts .btn{flex:1;justify-content:center;padding:10px 8px}
+ .ive-body{padding:14px 12px calc(env(safe-area-inset-bottom,0px) + 120px);display:block}
+ .ive-panel{position:fixed;left:0;right:0;bottom:0;width:auto;border-radius:26px 26px 0 0;max-height:62vh;box-shadow:0 -14px 34px rgba(40,34,28,.16);padding:10px 18px calc(env(safe-area-inset-bottom,0px) + 14px);transform:translateY(calc(100% - 118px));transition:transform .3s cubic-bezier(.3,.9,.3,1);top:auto;border:0}
+ .ive.editing .ive-panel{transform:none}
+ .ive-grab{display:block;width:42px;height:5px;border-radius:3px;background:#DCD7D0;margin:0 auto 4px;flex:none}
+ .ive.editing .ive-done{display:flex;justify-content:flex-end;position:sticky;bottom:-14px;background:#FAFAF9;padding:8px 0 4px}
+ .z-tag{display:none}
+}
+html[data-look="night"] .ive{background:#151413}html[data-look="night"] .ive-top,html[data-look="night"] .ive-panel,html[data-look="night"] .mn-sec{background:#1E1C1B;border-color:#2E2B29;color:#FAFAF9}
+html[data-look="night"] .mn-row{color:#FAFAF9;border-color:#2E2B29}html[data-look="night"] .ive-todo-i,html[data-look="night"] .ive-nums label{background:#2A2725;color:#FAFAF9}html[data-look="night"] .ive-nums input{color:#FAFAF9}
+`}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
