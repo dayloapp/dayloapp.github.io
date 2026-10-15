@@ -2521,7 +2521,10 @@ async function sendViaGmail(){
   if(snap.cc&&snap.cc.trim())lines.push('Cc: '+emails(snap.cc).join(', '));
   lines.push('Subject: '+encHdr(snap.subject||''));
   if(snap.gmail&&snap.gmail.msgId){lines.push('In-Reply-To: '+snap.gmail.msgId);lines.push('References: '+(snap.gmail.refs||snap.gmail.msgId))}
-  lines.push('MIME-Version: 1.0','Content-Type: text/plain; charset=UTF-8','Content-Transfer-Encoding: base64','',btoa(String.fromCharCode(...new TextEncoder().encode(snap.body||''))).replace(/(.{76})/g,'$1\r\n'));
+  const bodyB64=(()=>{const u=new TextEncoder().encode(snap.body||'');let s='';u.forEach(c=>s+=String.fromCharCode(c));return btoa(s).replace(/(.{76})/g,'$1\r\n')})();
+  if(snap.attach&&snap.attach.length){const bd='daylo_'+Date.now().toString(36);lines.push('MIME-Version: 1.0','Content-Type: multipart/mixed; boundary="'+bd+'"','','--'+bd,'Content-Type: text/plain; charset=UTF-8','Content-Transfer-Encoding: base64','',bodyB64);
+    snap.attach.forEach(a=>lines.push('--'+bd,'Content-Type: '+a.type+'; name="'+a.name.replace(/"/g,'')+'"','Content-Disposition: attachment; filename="'+a.name.replace(/"/g,'')+'"','Content-Transfer-Encoding: base64','',a.b64.replace(/(.{76})/g,'$1\r\n')));lines.push('--'+bd+'--')}
+  else lines.push('MIME-Version: 1.0','Content-Type: text/plain; charset=UTF-8','Content-Transfer-Encoding: base64','',bodyB64);
   const payload={raw:b64uEnc(lines.join('\r\n'))};if(snap.gmail&&snap.gmail.threadId)payload.threadId=snap.gmail.threadId;
   const btn=document.getElementById('cf-send');if(btn){btn.disabled=true;btn.textContent='Sending…'}
   let r;try{r=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{method:'POST',headers:{Authorization:'Bearer '+GTOK,'Content-Type':'application/json'},body:JSON.stringify(payload)})}catch{r=null}
@@ -2532,6 +2535,7 @@ async function sendViaGmail(){
   await attempt(()=>save('sent',{to:emails(snap.to),cc:emails(snap.cc),subject:snap.subject||'',body:snap.body||'',mode:'daylo',sentAt:at,messageId:j.id||'',threadId:j.threadId||'',verified:true,campaignId:snap.campaign?.id||null,invoiceId:snap.invoice?.id||null}));
   const tid=snap.gmail&&snap.gmail.threadId;
   if(tid){const tk=S.tasks.find(x=>x.gmailThread===tid&&!x.done&&x.type==='Reply');if(tk)await save('tasks',{...tk,done:true,doneAt:at})}
+  if(snap.invoice&&snap.invoice.id){const iv=S.invoices.find(x=>x.id===snap.invoice.id);if(iv&&iv.status==='Draft')await save('invoices',{...iv,status:'Sent',sentAt:at})}
   closeConfirm();closeComposer();renderMain();toast('Sent ✓');
 }
 function askConfirm(){
@@ -2655,7 +2659,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610151556';
+const BUILD_ID='202610151643';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -3645,11 +3649,11 @@ openMail=async function(threadId){
   const subj=them.p.subject.replace(/^(re|fwd?):\s*/i,'');
   const brandL=guessBrand(them.p.from)||them.p.fromName;
   const dateL=ms=>new Date(ms).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+' · '+new Date(ms).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
-  const msgEl=x=>{const atts=partsOf(x.m.payload).filter(a=>!a.inline||!/^image\//.test(a.type)||a.size>30000);const links=(x.p.text||'').match(/https?:\/\//)?[]:htmlLinks(x.m.payload);
+  const msgEl=x=>{const hb=mailHtmlOf(x.m.payload);const used=hb?hb.cids:new Set();const atts=partsOf2(x.m.payload).filter(a=>!(a.cid&&used.has(a.cid))&&!(a.inline&&/^image\//.test(a.type)&&a.size<30000));const links=hb||(x.p.text||'').match(/https?:\/\//)?[]:htmlLinks(x.m.payload);
     return h('article',{class:'mv2-msg'+(x.p.mine?' mine':'')},
       h('div',{class:'mv2-who'},h('b',null,x.p.mine?'You':x.p.fromName),h('span',null,dateL(x.p.at))),
-      h('div',{class:'mail-body'},linkify((x.p.text||x.p.snippet||'').slice(0,6000))),
-      atts.length?h('div',{class:'mail-atts'},atts.map(a=>{const b=h('button',{class:'mail-att',onclick:()=>openAttachment(x.m.id,a,b)},icon(/^image\//.test(a.type)?'camera':'pen'),h('span',null,h('b',null,a.name),h('small',null,kb(a.size))));return b})):null,
+      hb?mailFrame(hb,x.m):h('div',{class:'mail-body'},linkify((x.p.text||x.p.snippet||'').slice(0,6000))),
+      attsEl(atts,x.m.id),
       links.length?h('div',{class:'mail-links'},links.map(l=>h('a',{href:l.u,target:'_blank',rel:'noopener'},icon('ext'),l.label))):null)};
   const newest=ms.slice().reverse();const firstN=newest.slice(0,4),older=newest.slice(4);
   const list=h('div',{class:'mv2-list'},firstN.map(msgEl));
@@ -5702,6 +5706,253 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 html[data-look="night"] .pl-card{background:rgba(30,28,27,.92);border-color:#2E2B29}html[data-look="night"] .pl-h,html[data-look="night"] .np-card{color:#FAFAF9}
 html[data-look="night"] .np-card{background:#1E1C1B;border-color:#2E2B29}
 `}));
+
+/* ===================== Emails look the way they were sent: photos, buttons and links ===================== */
+function partsOf2(p,acc){acc=acc||[];if(!p)return acc;const hv=n=>((p.headers||[]).find(x=>x.name.toLowerCase()===n)||{}).value||'';
+  if(p.body&&p.body.attachmentId&&(p.filename||hv('content-id')))acc.push({name:p.filename||'image',type:p.mimeType||'application/octet-stream',size:p.body.size||0,id:p.body.attachmentId,inline:/^inline/i.test(hv('content-disposition')),cid:hv('content-id').replace(/[<>]/g,'').trim()});
+  (p.parts||[]).forEach(x=>partsOf2(x,acc));return acc}
+function mailHtmlOf(p){let html='';(function walk(x){if(!x||html)return;if(x.mimeType==='text/html'&&x.body&&x.body.data)html=b64u(x.body.data);(x.parts||[]).forEach(walk)})(p);
+  if(!html||html.length<20)return null;
+  html=html.replace(/<(script|iframe|object|embed|form|frameset|frame|applet)[\s\S]*?<\/\1\s*>/gi,'').replace(/<(script|iframe|object|embed|meta|base|link|input|button|textarea|select)\b[^>]*>/gi,'')
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi,'').replace(/(href|src)\s*=\s*(["'])\s*(javascript|vbscript|data:text)[^"']*\2/gi,'$1="#"');
+  const cids=new Set();html=html.replace(/src\s*=\s*(["'])cid:([^"']+)\1/gi,(m,q,c)=>{cids.add(c.trim());return 'data-cid="'+c.trim()+'" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="'});
+  return {html,cids}}
+function mailFrame(hb,m){
+  const doc='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base target="_blank"><style>html,body{margin:0;background:#fff;color:#222120;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;overflow-wrap:anywhere;-webkit-text-size-adjust:100%}body{padding:14px 14px 10px}img{max-width:100%!important;height:auto!important}table{max-width:100%}pre{white-space:pre-wrap}.gmail_quote,blockquote[type=cite],.yahoo_quoted,#appendonsend~*,div[id^=divRplyFwdMsg],div[id^=divRplyFwdMsg]~*{display:none!important}</style></head><body>'+hb.html+'</body></html>';
+  const f=h('iframe',{class:'mail-frame',title:'Email',sandbox:'allow-same-origin allow-popups allow-popups-to-escape-sandbox',referrerpolicy:'no-referrer'});f.srcdoc=doc;
+  const wrap=h('div',{class:'mail-html'},f);
+  let lastW=0,lastH=0;const fit=()=>{try{const d=f.contentDocument;if(!d||!d.body)return;const b=d.body;const W=f.clientWidth;if(W!==lastW){lastW=W;b.style.zoom='';const sw=d.documentElement.scrollWidth;if(sw>W+4)b.style.zoom=String(W/sw)}const z=Number(b.style.zoom)||1;const H=Math.ceil(b.scrollHeight*z+(parseFloat(getComputedStyle(b).paddingTop)||0)+12);if(Math.abs(H-lastH)>2){lastH=H;f.style.height=H+'px'}}catch(e){}};
+  f.addEventListener('load',()=>{try{const d=f.contentDocument;fit();d.querySelectorAll('img').forEach(i=>i.addEventListener('load',fit));
+    if(window.ResizeObserver){const ro=new ResizeObserver(()=>requestAnimationFrame(fit));ro.observe(d.body)}
+    d.querySelectorAll('a[href]').forEach(a=>{a.target='_blank';a.rel='noopener noreferrer'});
+    if(hb.cids.size){const parts=partsOf2(m.payload);d.querySelectorAll('img[data-cid]').forEach(async i=>{const pt=parts.find(x=>x.cid===i.dataset.cid);if(!pt)return;try{const j=await gget('messages/'+m.id+'/attachments/'+pt.id);i.src='data:'+pt.type+';base64,'+(j.data||'').replace(/-/g,'+').replace(/_/g,'/');}catch(e){}})}
+    setTimeout(fit,400);setTimeout(fit,1500)}catch(e){console.error(e)}});
+  return wrap}
+async function attBlob(msgId,a){const j=await gget('messages/'+msgId+'/attachments/'+a.id);const bin=atob((j.data||'').replace(/-/g,'+').replace(/_/g,'/'));return new Blob([Uint8Array.from(bin,c=>c.charCodeAt(0))],{type:a.type})}
+async function saveAttachment(msgId,a,btn){if(!tokOk()){toast('Connect Gmail first, then try again.');return}btn&&btn.classList.add('busy');
+  try{const blob=await attBlob(msgId,a);const file=new File([blob],a.name,{type:a.type});
+    if(/iPhone|iPad|Android/i.test(navigator.userAgent)&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:a.name}).catch(()=>{})}
+    else{const u=URL.createObjectURL(blob);const l=h('a',{href:u,download:a.name});document.body.append(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);toast('Saved '+a.name)}}
+  catch(e){toast(e.copy||'Couldn’t save this file.')}finally{btn&&btn.classList.remove('busy')}}
+function attsEl(atts,msgId){if(!atts.length)return null;
+  const imgs=atts.filter(a=>/^image\//.test(a.type)),rest=atts.filter(a=>!/^image\//.test(a.type));
+  const grid=imgs.length?h('div',{class:'att-imgs'},imgs.map(a=>{const th=h('span',{class:'att-th'});const b=h('button',{class:'att-img',onclick:()=>openAttachment(msgId,a,b)},th,h('span',{class:'att-n'},h('b',null,a.name),h('small',null,kb(a.size))));
+    if(a.size<6e6&&tokOk())attBlob(msgId,a).then(bl=>{th.style.backgroundImage='url('+URL.createObjectURL(bl)+')'}).catch(()=>{});return b})):null;
+  const files=rest.map(a=>{const sv=h('button',{class:'btn ghost att-sv',onclick:e=>{e.stopPropagation();saveAttachment(msgId,a,sv)}},'Save');const op=h('button',{class:'btn att-op',onclick:e=>{e.stopPropagation();openAttachment(msgId,a,op)}},'Open');
+    return h('div',{class:'att-file'},icon('file'),h('span',{class:'att-n'},h('b',null,a.name),h('small',null,(/pdf/.test(a.type)?'PDF · ':'')+kb(a.size))),h('span',{class:'att-acts'},op,sv))});
+  return h('div',{class:'mail-atts2'},grid,...files)}
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.mail-html{border:1px solid #ECE5DC;border-radius:18px;overflow:hidden;background:#fff;margin-top:6px}
+.mail-frame{display:block;width:100%;height:220px;border:0;background:#fff}
+.mail-atts2{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.att-imgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.att-img{border:0;padding:0;border-radius:14px;background:#F4F0EA;overflow:hidden;text-align:left;cursor:pointer;font:inherit;color:#222120}
+.att-th{display:block;height:96px;background:#ECE5DC center/cover no-repeat}
+.att-n{display:flex;flex-direction:column;min-width:0;padding:8px 10px}.att-n b{font:500 12.5px var(--f-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.att-n small{font-size:11px;color:#857A70}
+.att-file{display:flex;align-items:center;gap:6px;background:#F4F0EA;border-radius:14px;padding:8px 10px 8px 12px;color:#222120}.att-file .att-n{padding:0 6px;flex:1}
+.att-acts{display:flex;gap:6px}.att-acts .btn{padding:6px 13px;font-size:12.5px;min-height:0}
+.att-img.busy,.att-acts .busy{opacity:.5;pointer-events:none}
+html[data-look="night"] .mail-html{border-color:#2E2B29}html[data-look="night"] .att-file,html[data-look="night"] .att-img{background:#1E1C1B;color:#FAFAF9}
+`}));
+
+ICONS.download='<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>';ICONS.file='<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>';
+/* ===================== Invoices: editable deliverables, Editorial PDF, email with the PDF attached ===================== */
+const INV_LABELS=/^(beneficiary|account (name|holder|number|no\.?)|name|iban|bic.*|swift.*|routing( number)?|aba|sort code|bank( name)?( and address)?|bank address|correspondent.*|intermediary.*|currency|reference|paypal|venmo|zelle|cash ?app|revolut.*|wise.*|transit.*|institution.*|bsb|ifsc|clabe)\s*:?$/i;
+function parseBank(txt){const L=String(txt||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);const rows=[];let cur='';
+  for(let k=0;k<L.length;k++){const l=L[k];const inl=l.match(/^([^:]{2,40}):\s*(.+)$/);
+    if(inl&&!/^https?$/i.test(inl[1])){rows.push([inl[1].trim(),inl[2].trim()]);continue}
+    if(INV_LABELS.test(l)&&L[k+1]&&!INV_LABELS.test(L[k+1])){rows.push([l.replace(/:$/,'').replace(/^BIC \/ SWIFT code$/i,'BIC / SWIFT').replace(/^Bank Name and Address$/i,'Bank'),L[k+1]]);k++;continue}
+    if(!rows.length&&!cur&&/dollar|euro|pound|usd|eur|gbp|currency/i.test(l)){cur=l;continue}
+    if(rows.length)rows[rows.length-1][1]+=', '+l;else rows.push(['Details',l])}
+  return {rows,cur}}
+function invMe(){const m=S.settings.invMe||{};return {name:m.name||myName()||'',addr:m.addr||'',phone:m.phone||'',email:m.email||(typeof hintEmail==='function'&&hintEmail())||(typeof CUR==='string'?CUR:'')||'',bank:m.bank||[],bankCur:m.bankCur||'',sign:m.sign||(myName()||'').split(' ')[0]||'',terms:m.terms!=null?m.terms:30}}
+function openInvoiceDetails(after){
+  const m=invMe();let bank=m.bank.map(r=>[...r]);
+  const rowsEl=h('div',{class:'ivd-rows'});
+  const drawRows=()=>rowsEl.replaceChildren(...bank.map((r,k)=>h('div',{class:'ivd-row'},h('input',{class:'input ivd-k',value:r[0],placeholder:'Label',oninput:e=>bank[k][0]=e.target.value}),h('input',{class:'input',value:r[1],placeholder:'Value',oninput:e=>bank[k][1]=e.target.value}),h('button',{class:'iv-x',type:'button','aria-label':'Remove',onclick:()=>{bank.splice(k,1);drawRows()}},'×'))),
+    h('button',{class:'btn ghost iv-addl',type:'button',onclick:()=>{bank.push(['','']);drawRows();rowsEl.querySelector('.ivd-row:last-of-type input')?.focus()}},'+ Add a line'));
+  drawRows();
+  const paste=h('textarea',{class:'input',rows:'3',placeholder:'Paste your bank details here (from Revolut, Wise, your bank…). Daylo fills the lines for you.',oninput:e=>{const p=parseBank(e.target.value);if(p.rows.length){bank=p.rows;if(p.cur)curIn.value=p.cur;drawRows();e.target.value='';toast('Filled in. Check the lines, then Save.')}}});
+  const fi=(lbl,el)=>h('label',{class:'ivd-f'},h('span',null,lbl),el);
+  const nm=h('input',{class:'input',value:m.name}),ad=h('textarea',{class:'input',rows:'2',value:m.addr,placeholder:'Street, apartment\nCity, State ZIP'}),ph=h('input',{class:'input',value:m.phone,type:'tel'}),em=h('input',{class:'input',value:m.email,type:'email'}),sg=h('input',{class:'input',value:m.sign}),tr=h('input',{class:'input',type:'number',min:'0',value:m.terms});
+  const curIn=h('input',{class:'input',value:m.bankCur,placeholder:'e.g. US Dollar'});
+  const body=h('div',{class:'form ivd'},h('p',{class:'ivd-note'},'Saved privately in your account and used on every invoice.'),
+    h('div',{class:'ivd-h'},'You'),fi('Name',nm),fi('Address',ad),h('div',{class:'ivd-two'},fi('Phone',ph),fi('Email',em)),
+    h('div',{class:'ivd-h'},'How brands pay you'),paste,fi('Account',curIn),rowsEl,
+    h('div',{class:'ivd-h'},'Signature and terms'),h('div',{class:'ivd-two'},fi('Signed as',sg),fi('Days to pay',tr)));
+  openDrawer('Your invoice details',body,[h('button',{class:'btn primary',onclick:async()=>{await saveSettings({invMe:{name:nm.value.trim(),addr:ad.value.trim(),phone:ph.value.trim(),email:em.value.trim(),bank:bank.filter(r=>r[0].trim()||r[1].trim()).map(r=>[r[0].trim(),r[1].trim()]),bankCur:curIn.value.trim(),sign:sg.value.trim(),terms:Number(tr.value)||0}});toast('Saved. Your invoices are ready to go.');closeDrawer();if(after)after()}},'Save'),h('button',{class:'btn ghost',onclick:()=>{closeDrawer();if(after)after()}},'Cancel')]);
+  document.querySelector('#overlay .drawer')?.classList.add('inv-drawer')}
+function invItems(i){if(Array.isArray(i.items)&&i.items.length)return i.items.map(x=>({...x}));return [{name:i.description||'Content',detail:'',qty:1,price:i.amount!=null&&i.amount!==''?Number(i.amount):''}]}
+function invTotal(items){return items.reduce((s,x)=>s+(Number(x.qty)||0)*(Number(x.price)||0),0)}
+function invNewFromDeal(c){const m=invMe();const t=ymd();
+  const price=c?(c.feeConfirmed??c.feeProposed??''):'';
+  return {number:nextInvoiceNumber(),status:'Draft',issued:t,due:addDays(t,m.terms||30),currency:c?.currency||defCur(),client:c?.brand||'',clientEmail:c?.contactEmail||'',contactName:'',
+    items:[{name:c?(c.campaign||c.brand+' campaign'):'',detail:c?(c.deliverables||''):'',qty:1,price}],campaignId:c?.id||null,notes:''}}
+openInvoice=function(i0,fromCampaign){
+  let inv=i0?{...i0}:invNewFromDeal(fromCampaign);inv.items=invItems(inv);if(!i0&&fromCampaign&&(fromCampaign.feeConfirmed==null||fromCampaign.feeConfirmed===''))inv._unconfirmed=true;
+  const totEl=h('b',{class:'iv-tot'});const curSel=h('select',{class:'iv-cur',onchange:e=>{inv.currency=e.target.value;upd()}},[...new Set([inv.currency||defCur(),...CURRENCIES])].map(c=>h('option',{value:c,selected:c===(inv.currency||defCur())},c)));
+  const upd=()=>{totEl.textContent=money(invTotal(inv.items),inv.currency)||money(0,inv.currency);lines.querySelectorAll('.iv-lt').forEach((el,k)=>{const x=inv.items[k];el.textContent=x?money((Number(x.qty)||0)*(Number(x.price)||0),inv.currency):''})};
+  const lines=h('div',{class:'iv-lines'});
+  const drawLines=()=>{lines.replaceChildren(...inv.items.map((x,k)=>h('div',{class:'iv-li'},
+      h('div',{class:'iv-nm'},h('input',{class:'iv-in iv-name',value:x.name||'',placeholder:'Deliverable, e.g. Instagram Reel',oninput:e=>{x.name=e.target.value}}),h('input',{class:'iv-in iv-det',value:x.detail||'',placeholder:'Details (optional)',oninput:e=>{x.detail=e.target.value}})),
+      h('div',{class:'iv-nums'},h('label',{class:'iv-q'},h('span',null,'Qty'),h('input',{class:'iv-in',type:'number',min:'0',step:'1',inputmode:'numeric',value:x.qty??1,oninput:e=>{x.qty=e.target.value;upd()}})),
+        h('label',{class:'iv-p'},h('span',null,'Price'),h('input',{class:'iv-in',type:'number',min:'0',step:'0.01',inputmode:'decimal',value:x.price??'',placeholder:'0',oninput:e=>{x.price=e.target.value;upd()}})),
+        h('span',{class:'iv-lt'}),inv.items.length>1?h('button',{class:'iv-x',type:'button','aria-label':'Remove line',onclick:()=>{inv.items.splice(k,1);drawLines()}},'×'):h('span',{class:'iv-x0'}))))),upd()};
+  drawLines();
+  const inp2=(v,o,on)=>h('input',{class:'input',value:v||'',...o,oninput:e=>on(e.target.value)});
+  const me=invMe();const ready=me.name&&me.bank.length;
+  const payLine=h('button',{class:'iv-pay',type:'button',onclick:()=>{collect();closeDrawer();openInvoiceDetails(()=>openInvoice(inv._saved?S.invoices.find(x=>x.id===inv.id)||inv:inv,null))}},icon('payments'),
+    h('span',null,ready?h('span',null,'Paid to ',h('b',null,(me.bankCur?me.bankCur+' · ':'')+(me.bank.find(r=>/beneficiary|name/i.test(r[0]))||[,me.name])[1])):h('b',null,'Add your details and how brands pay you')),h('span',{class:'iv-chg'},ready?'Change':'Add'));
+  const stSeg=h('div',{class:'iv-st'},['Draft','Sent','Paid'].map(s=>h('button',{type:'button',class:inv.status===s?'on':'',onclick:e=>{inv.status=s;stSeg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.textContent===s))}},s)));
+  const collect=()=>{inv.items=inv.items.map(x=>({name:(x.name||'').trim(),detail:(x.detail||'').trim(),qty:Number(x.qty)||0,price:x.price===''||x.price==null?0:Number(x.price)})).filter(x=>x.name||x.price);if(!inv.items.length)inv.items=[{name:'',detail:'',qty:1,price:''}];inv.amount=invTotal(inv.items);inv.description=inv.items.map(x=>(x.qty>1?x.qty+' × ':'')+x.name).filter(Boolean).join(', ').slice(0,120)};
+  const doSave=async(quiet)=>{collect();if(!inv.client.trim()){toast('Add who the invoice is for.');form.querySelector('[name=iv-client]')?.focus();return null}
+    if(inv.status==='Paid'&&!inv.paidOn)inv.paidOn=ymd();const rec={...inv};delete rec._unconfirmed;delete rec._saved;
+    const id=await save('invoices',rec);inv.id=id;inv._saved=true;
+    if(rec.campaignId){const cc=S.campaigns.find(x=>x.id===rec.campaignId);const ps=rec.status==='Paid'?'Paid':rec.status==='Sent'?'Invoiced':null;if(cc&&ps&&cc.payStatus!==ps)await save('campaigns',{...cc,payStatus:ps})}
+    if(!quiet)toast('Invoice saved.');try{if(['campaigns','payments','today'].includes(page))renderMain()}catch{}return id};
+  const form=h('div',{class:'iv'},
+    h('div',{class:'iv-top'},h('h2',{class:'iv-ttl'},'Invoice ',h('em',null,inv.client?'for '+inv.client:'')),h('span',{class:'iv-sub'},h('input',{class:'iv-in iv-no',value:inv.number||'','aria-label':'Invoice number',oninput:e=>inv.number=e.target.value}),fromCampaign?' · From your '+(fromCampaign.campaign||fromCampaign.brand)+' deal':'')),
+    inv._unconfirmed?h('div',{class:'notice'},icon('alert'),h('p',null,'This deal has no agreed fee yet. Check the price with the brand before you send.')):null,
+    h('div',{class:'iv-card'},h('span',{class:'iv-k'},'Billed to'),h('input',{class:'iv-in iv-big',name:'iv-client',value:inv.client||'',placeholder:'Brand or company',oninput:e=>{inv.client=e.target.value;form.querySelector('.iv-ttl em').textContent=inv.client?'for '+inv.client:''}}),
+      h('div',{class:'iv-two'},h('input',{class:'iv-in',value:inv.contactName||'',placeholder:'Contact name',oninput:e=>inv.contactName=e.target.value}),h('input',{class:'iv-in',type:'email',value:inv.clientEmail||'',placeholder:'Their email',oninput:e=>inv.clientEmail=e.target.value.trim()}))),
+    h('div',{class:'iv-two'},h('label',{class:'iv-card'},h('span',{class:'iv-k'},'Issued'),h('input',{class:'iv-in',type:'date',value:inv.issued||'',oninput:e=>inv.issued=e.target.value})),h('label',{class:'iv-card'},h('span',{class:'iv-k'},'Due'),h('input',{class:'iv-in',type:'date',value:inv.due||'',oninput:e=>inv.due=e.target.value}))),
+    h('div',{class:'iv-k iv-dl'},'Deliverables'),lines,
+    h('button',{class:'iv-addl',type:'button',onclick:()=>{inv.items.push({name:'',detail:'',qty:1,price:''});drawLines();lines.querySelector('.iv-li:last-child .iv-name')?.focus()}},'+ Add a line'),
+    h('div',{class:'iv-total'},h('span',{class:'iv-k'},'Total · ',curSel),totEl),
+    payLine,
+    h('label',{class:'iv-card iv-notes'},h('span',{class:'iv-k'},'Note on the invoice (optional)'),h('textarea',{class:'iv-in',rows:'2',value:inv.notes||'',placeholder:'e.g. Thank you for a lovely campaign!',oninput:e=>inv.notes=e.target.value})),
+    h('div',{class:'iv-strow'},h('span',{class:'iv-k'},'Status'),stSeg),
+    inv.id?h('button',{class:'iv-del',type:'button',onclick:e=>confirmDelete(e.currentTarget,async()=>{await removeDoc('invoices',inv.id);toast('Invoice deleted.');closeDrawer();try{renderMain()}catch{}})},'Delete invoice'):null);
+  const pdfBtn=h('button',{class:'btn',onclick:async()=>{if(!(await doSave(true)))return;pdfBtn.classList.add('busy');try{await saveInvoicePdf(inv)}finally{pdfBtn.classList.remove('busy')}}},icon('download'),'PDF');
+  const mailBtn=h('button',{class:'btn primary',onclick:async()=>{if(!inv.clientEmail){toast('Add their email first.');form.querySelector('input[type=email]')?.focus();return}if(!(await doSave(true)))return;mailBtn.classList.add('busy');try{await emailInvoicePdf(inv)}finally{mailBtn.classList.remove('busy')}}},icon('send'),'Email it');
+  openDrawer(inv.id?'Invoice '+(inv.number||''):'New invoice',form,[h('button',{class:'btn ghost',onclick:async()=>{if(await doSave())closeDrawer()}},'Save'),pdfBtn,mailBtn],{noFocus:true});
+  document.querySelector('#overlay .drawer')?.classList.add('inv-drawer');
+};
+/* drawing the Editorial invoice */
+const fmtLong=d=>{try{return parseYmd(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}catch{return d||''}};
+async function invoiceCanvas(inv,scale){scale=scale||2.2;const W=794,PAD=70;const me=invMe();const items=invItems(inv);const cur=inv.currency||defCur();
+  try{await Promise.all(['400 64px Lora','italic 400 13px Lora','400 26px Lora','500 13px Inter','400 12px Inter','600 10px Inter','400 44px "La Belle Aurore"'].map(f=>document.fonts.load(f)))}catch{}
+  const mc=document.createElement('canvas').getContext('2d');
+  const wrap=(txt,font,maxW)=>{mc.font=font;const out=[];String(txt||'').split('\n').forEach(par=>{let line='';par.split(/\s+/).forEach(w=>{const t=line?line+' '+w:w;if(mc.measureText(t).width>maxW&&line){out.push(line);line=w}else line=t});out.push(line)});return out.filter((l,k)=>l||k===0)};
+  // layout pass
+  const colQ=W-PAD-300,colP=W-PAD-130,colT=W-PAD;const nameW=colQ-PAD-40;
+  const rowsL=items.map(x=>({x,n:wrap(x.name||'',"500 13px Inter",nameW),d:x.detail?wrap(x.detail,"400 11.5px Inter",nameW):[]}));
+  const bankRows=me.bank.map(([k,v])=>({k,v:wrap(v,"400 11.5px Inter",W-PAD*2-150)}));
+  let y=0;const plan=[];
+  let H=470+rowsL.reduce((s,r)=>s+20+r.n.length*18+r.d.length*16,0)+150+(bankRows.length?40+bankRows.reduce((s,r)=>s+r.v.length*17,0):0)+60+(inv.notes?wrap(inv.notes,"400 11.5px Inter",W-PAD*2).length*17+10:0)+170;
+  H=Math.max(1123,H);
+  const cv=document.createElement('canvas');cv.width=Math.round(W*scale);cv.height=Math.round(H*scale);const c=cv.getContext('2d');c.scale(scale,scale);
+  c.fillStyle='#FAFAF9';c.fillRect(0,0,W,H);c.textBaseline='alphabetic';
+  const T=(t,x,yy,font,col,align,ls)=>{c.font=font;c.fillStyle=col||'#222120';c.textAlign=align||'left';try{c.letterSpacing=(ls||0)+'px'}catch{}c.fillText(t,x,yy);try{c.letterSpacing='0px'}catch{}};
+  const TAUPE='#6F6C67',LBL='#857A70';
+  // header
+  y=78;T('BILLED TO',PAD,y,'600 9.5px Inter',LBL,'left',1.6);y+=20;T(inv.client||'',PAD,y,'600 12.5px Inter');
+  [inv.contactName,inv.clientEmail].filter(Boolean).forEach(l=>{y+=18;T(l,PAD,y,'400 12px Inter',TAUPE)});
+  let ry=78+20-20;const right=[[me.name,'600 12.5px Inter','#222120'],...String(me.addr||'').split('\n').filter(Boolean).map(l=>[l,'400 12px Inter',TAUPE]),me.phone?[me.phone,'400 12px Inter',TAUPE]:null,me.email?[me.email,'400 12px Inter',TAUPE]:null].filter(Boolean);
+  right.forEach((r,k)=>{T(r[0],W-PAD,78+k*18,r[1],r[2],'right')});
+  y=Math.max(y,78+right.length*18)+110;
+  T('Invoice',W/2,y,'400 64px Lora','#222120','center');y+=32;T('NO. '+(inv.number||''),W/2,y,'500 11px Inter',LBL,'center',3);
+  y+=34;c.font='400 12px Inter';const d1='ISSUED',d1v=fmtLong(inv.issued),d2='DUE',d2v=fmtLong(inv.due);
+  const wA=c.measureText(d1+'  ').width+(c.font='500 12px Inter',c.measureText(d1v).width),wB=(c.font='400 12px Inter',c.measureText(d2+'  ').width)+(c.font='500 12px Inter',c.measureText(d2v).width);
+  let x0=W/2-(wA+48+wB)/2;c.font='400 12px Inter';T(d1,x0,y,'400 12px Inter',TAUPE);x0+=c.measureText(d1+'  ').width;T(d1v,x0,y,'500 12px Inter');c.font='500 12px Inter';x0+=c.measureText(d1v).width+48;
+  if(inv.due){T(d2,x0,y,'400 12px Inter',TAUPE);c.font='400 12px Inter';x0+=c.measureText(d2+'  ').width;T(d2v,x0,y,'500 12px Inter')}
+  // table
+  y+=70;T('Deliverables',PAD,y,'italic 400 13px Lora',LBL);T('Qty',colQ,y,'italic 400 13px Lora',LBL,'center');T('Price',colP,y,'italic 400 13px Lora',LBL,'right');T('Total',colT,y,'italic 400 13px Lora',LBL,'right');
+  y+=12;c.fillStyle='#DCD7D0';c.fillRect(PAD,y,W-PAD*2,1);
+  rowsL.forEach(r=>{y+=24;const y0=y;r.n.forEach((l,k)=>T(l,PAD,y0+k*18,'500 13px Inter'));let yy=y0+(r.n.length-1)*18;r.d.forEach(l=>{yy+=17;T(l,PAD,yy,'400 11.5px Inter',TAUPE)});
+    T(String(r.x.qty??''),colQ,y0,'400 13px Inter','#222120','center');T(money(r.x.price||0,cur),colP,y0,'400 13px Inter','#222120','right');T(money((Number(r.x.qty)||0)*(Number(r.x.price)||0),cur),colT,y0,'400 13px Inter','#222120','right');
+    y=yy+16;c.fillStyle='#ECE5DC';c.fillRect(PAD,y,W-PAD*2,1)});
+  const total=invTotal(items);const tx=W-PAD-300;
+  y+=30;T('Subtotal',tx,y,'400 13px Inter');T(money(total,cur),colT,y,'400 13px Inter','#222120','right');
+  y+=16;c.fillStyle='#222120';c.fillRect(tx,y,300,1);y+=36;T('Total',tx,y,'400 26px Lora');T(money(total,cur),colT,y,'400 26px Lora','#222120','right');
+  // payment
+  if(bankRows.length){y+=60;T(('PAY BY BANK TRANSFER'+(me.bankCur?' · '+me.bankCur:'')).toUpperCase(),PAD,y,'600 9.5px Inter',LBL,'left',1.6);y+=8;
+    bankRows.forEach(r=>{y+=18;T(r.k,PAD,y,'400 11.5px Inter',LBL);r.v.forEach((l,k)=>T(l,PAD+150,y+k*17,'400 11.5px Inter',TAUPE));y+=(r.v.length-1)*17})}
+  y+=bankRows.length?26:50;T((me.terms?'Payment due within '+me.terms+' days. ':'')+'Reference: '+(inv.number||''),PAD,y,'400 11.5px Inter',TAUPE);
+  if(inv.notes){wrap(inv.notes,'400 11.5px Inter',W-PAD*2).forEach(l=>{y+=17;T(l,PAD,y,'400 11.5px Inter',TAUPE)})}
+  // thank you + signature
+  const by=H-118;T('Thank you',W/2,by,'400 12.5px Inter',TAUPE,'center');T(me.sign||me.name||'',W/2,by+50,'400 44px "La Belle Aurore"','#222120','center');
+  return cv}
+function pdfFromCanvas(cv){const data=atob(cv.toDataURL('image/jpeg',0.88).split(',')[1]);const img=Uint8Array.from(data,ch=>ch.charCodeAt(0));
+  const pw=595.28,ph=+(pw*cv.height/cv.width).toFixed(2);const enc=new TextEncoder();const parts=[];let len=0;const offs=[];
+  const add=x=>{const b=typeof x==='string'?enc.encode(x):x;parts.push(b);len+=b.length};
+  add('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'.replace(/[\u0080-ÿ]/g,'a'));
+  const obj=(n,s)=>{offs[n]=len;add(n+' 0 obj\n'+s+'\nendobj\n')};
+  obj(1,'<< /Type /Catalog /Pages 2 0 R >>');obj(2,'<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+  obj(3,`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`);
+  offs[4]=len;add(`4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${cv.width} /Height ${cv.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.length} >>\nstream\n`);add(img);add('\nendstream\nendobj\n');
+  const cs=`q ${pw} 0 0 ${ph} 0 0 cm /Im0 Do Q`;obj(5,`<< /Length ${cs.length} >>\nstream\n${cs}\nendstream`);
+  const xref=len;add('xref\n0 6\n0000000000 65535 f \n'+[1,2,3,4,5].map(n=>String(offs[n]).padStart(10,'0')+' 00000 n \n').join(''));add(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+  return new Blob(parts,{type:'application/pdf'})}
+const invFile=inv=>'Invoice '+(inv.number||'')+(invMe().name?' - '+invMe().name:'')+'.pdf';
+async function invoicePdfBlob(inv){return pdfFromCanvas(await invoiceCanvas(inv,2.2))}
+async function saveInvoicePdf(inv){try{const blob=await invoicePdfBlob(inv);const name=invFile(inv);const file=new File([blob],name,{type:'application/pdf'});
+  if(/iPhone|iPad|Android/i.test(navigator.userAgent)&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:name}).catch(()=>{})}
+  else{const u=URL.createObjectURL(blob);const a=h('a',{href:u,download:name});document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}
+  toast('Your invoice PDF is ready. Looking expensive.')}catch(e){console.error(e);toast('Couldn’t make the PDF. Try again.')}}
+function blobB64(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(blob)})}
+async function emailInvoicePdf(inv){const blob=await invoicePdfBlob(inv);const b64=await blobB64(blob);const me=invMe();
+  const late=inv.status==='Sent'&&inv.due&&inv.due<ymd();const total=money(invTotal(invItems(inv)),inv.currency);
+  const hi=inv.contactName?'Hi '+inv.contactName.split(' ')[0]+',':(inv.client?'Hi '+inv.client+' team,':'Hi,');
+  const body=[hi,'',late?'A friendly reminder that invoice '+inv.number+' is now past its due date. I’ve attached it again here.':'Please find attached my invoice '+inv.number+' for '+total+(inv.due?', due '+fmtLong(inv.due):'')+'.','','Thank you!',me.sign||me.name||''].join('\n');
+  closeDrawer();openComposer({to:inv.clientEmail,subject:(late?'Reminder: ':'')+'Invoice '+(inv.number||'')+(inv.client?' · '+inv.client:''),body,invoice:inv,attach:[{name:invFile(inv),type:'application/pdf',b64,size:blob.size,blob}]})}
+openComposer=(function(prev){return function(o){prev(o);try{if(CP)CP.attach=(o&&o.attach)||null;if(CP&&CP.attach)drawComposer()}catch(e){console.error(e)}}})(openComposer);
+drawComposer=(function(prev){return function(){prev();try{if(!CP||!CP.attach||!CP.attach.length)return;const sub=document.getElementById('cp-subject');const fld=sub&&sub.closest('.field');if(!fld||fld.parentElement.querySelector('.cp-att'))return;
+  const chips=h('div',{class:'cp-att'},CP.attach.map(a=>h('button',{type:'button',class:'cp-att-c',onclick:()=>{const u=URL.createObjectURL(a.blob||new Blob([Uint8Array.from(atob(a.b64),c=>c.charCodeAt(0))],{type:a.type}));window.open(u,'_blank')}},icon('file'),h('span',null,h('b',null,a.name),h('small',null,'Attached · '+kb(a.size||0))))));
+  fld.after(chips)}catch(e){console.error(e)}}})(drawComposer);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.inv-drawer .drawer-body{background:#FAFAF9}
+.iv{display:flex;flex-direction:column;gap:10px;padding-bottom:6px}
+.iv-ttl{font:400 30px/1.1 Lora,Georgia,serif;margin:0}.iv-ttl em{color:#6B625B}
+.iv-sub{display:flex;align-items:center;gap:4px;font-size:12.5px;color:#857A70;margin-top:2px}.iv-no{width:120px;font-size:12.5px!important;color:#857A70!important;padding:2px 0!important}
+.iv-k{font:600 9.5px var(--f-body);letter-spacing:.16em;text-transform:uppercase;color:#857A70}
+.iv-card{display:flex;flex-direction:column;gap:2px;background:#F4F0EA;border-radius:16px;padding:10px 14px;min-width:0}
+.iv-two{display:flex;gap:8px}.iv-two>*{flex:1;min-width:0}
+.iv-in{border:0;background:transparent;font:500 15px var(--f-body);color:#222120;padding:3px 0;width:100%;outline:none;min-width:0}.iv-in::placeholder{color:#A09A93;font-weight:400}
+.iv-in:focus{box-shadow:0 1.5px 0 #222120}.iv-big{font-size:16px}
+.iv-dl{margin:8px 2px 0}
+.iv-li{display:flex;flex-direction:column;gap:6px;padding:10px 2px;border-bottom:1px solid #ECE5DC}
+.iv-nm .iv-name{font-size:15px}.iv-nm .iv-det{font:400 12.5px var(--f-body);color:#6F6C67}
+.iv-nums{display:flex;align-items:center;gap:8px}.iv-nums label{display:flex;align-items:center;gap:6px;background:#F4F0EA;border-radius:999px;padding:4px 12px}
+.iv-nums label span{font-size:11.5px;color:#857A70}.iv-q input{width:38px}.iv-p input{width:84px}
+.iv-lt{margin-left:auto;font:400 17px Lora,Georgia,serif;white-space:nowrap}
+.iv-x{border:0;background:transparent;font-size:20px;line-height:1;color:#857A70;cursor:pointer;width:28px;height:28px;border-radius:50%}.iv-x:hover{background:#ECE5DC}.iv-x0{width:28px}
+.iv-addl{align-self:flex-start;border:0;background:transparent;font:600 13.5px var(--f-body);color:#222120;padding:6px 2px;cursor:pointer}
+.iv-total{display:flex;justify-content:space-between;align-items:baseline;border-top:1.5px solid #222120;padding-top:10px}.iv-tot{font:400 32px Lora,Georgia,serif}
+.iv-cur{border:0;background:transparent;font:600 9.5px var(--f-body);letter-spacing:.16em;color:#857A70;cursor:pointer}
+.iv-pay{display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:6px 2px;font:400 13px var(--f-body);color:#6F6C67;text-align:left;cursor:pointer}.iv-pay b{color:#222120;font-weight:500}.iv-chg{margin-left:auto;font-weight:500;color:#857A70}
+.iv-notes textarea{resize:vertical;font-weight:400;font-size:14px}
+.iv-strow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.iv-st{display:flex;background:#F4F0EA;border-radius:999px;padding:3px}.iv-st button{border:0;background:transparent;border-radius:999px;padding:6px 14px;font:500 12.5px var(--f-body);color:#857A70;cursor:pointer}.iv-st button.on{background:#FAFAF9;color:#222120;box-shadow:0 1px 3px rgba(40,34,28,.12)}
+.iv-del{align-self:flex-start;border:0;background:transparent;color:#857A70;font:500 12.5px var(--f-body);text-decoration:underline;cursor:pointer;padding:6px 2px}
+.inv-drawer .drawer-foot .btn{flex:1;justify-content:center}.inv-drawer .btn.busy{opacity:.55;pointer-events:none}
+.ivd{gap:10px}.ivd-note{margin:0;font-size:12.5px;color:#857A70}.ivd-h{font:400 20px Lora,Georgia,serif;margin-top:8px}
+.ivd-f{display:flex;flex-direction:column;gap:4px}.ivd-f span{font:600 9.5px var(--f-body);letter-spacing:.16em;text-transform:uppercase;color:#857A70}
+.ivd-two{display:flex;gap:8px}.ivd-two>*{flex:1;min-width:0}
+.ivd-rows{display:flex;flex-direction:column;gap:6px}.ivd-row{display:flex;gap:6px;align-items:center}.ivd-row .input{min-width:0}.ivd-k{flex:0 0 38%}
+.cp-att{display:flex;flex-wrap:wrap;gap:8px;grid-column:1/-1}.cp-att-c{display:flex;align-items:center;gap:8px;border:0;background:#F4F0EA;border-radius:14px;padding:8px 12px;cursor:pointer;color:#222120;text-align:left}
+.cp-att-c span{display:flex;flex-direction:column}.cp-att-c b{font:500 13px var(--f-body)}.cp-att-c small{font-size:11px;color:#857A70}
+html[data-look="night"] .inv-drawer .drawer-body{background:transparent}html[data-look="night"] .iv-card,html[data-look="night"] .iv-nums label,html[data-look="night"] .iv-st,html[data-look="night"] .cp-att-c{background:#1E1C1B}
+html[data-look="night"] .iv-in,html[data-look="night"] .iv-pay b,html[data-look="night"] .cp-att-c{color:#FAFAF9}html[data-look="night"] .iv-total{border-color:#FAFAF9}html[data-look="night"] .iv-st button.on{background:#2E2B29;color:#FAFAF9}
+`}));
+
+/* ===================== New emails arrive by themselves (no refresh needed) ===================== */
+const LIVE={busy:false,last:0};
+async function liveMailCheck(){
+  if(LIVE.busy||document.hidden||!tokOk()||IBX.busy)return;if(Date.now()-LIVE.last<25000)return;
+  LIVE.busy=true;LIVE.last=Date.now();
+  try{const r=await gget('messages',{q:'in:inbox',maxResults:5});const top=(r.messages||[]).map(m=>m.id).join(',');
+    const prev=S.settings.gmailTop;
+    if(top&&top!==prev){const known=new Set((S.settings.gmailTopIds||[]));await saveSettings({gmailTop:top,gmailTopIds:(r.messages||[]).map(m=>m.id)});
+      if(prev){const fresh=(r.messages||[]).filter(m=>!known.has(m.id));await loadInbox30(true);
+        if(fresh.length){const it=inboxList().find(x=>x.threadId===fresh[0].threadId);if(it&&!it.bulk)toast('New email from '+(it.fromName||'someone')+'.')}
+        try{const open=document.querySelector('#overlay .mv2');const tid=open&&open.dataset.tid;if(tid&&fresh.some(m=>m.threadId===tid))openMail(tid)}catch{}
+        try{if(['today','inbox'].includes(page))renderMain()}catch{}}}
+  }catch(e){}finally{LIVE.busy=false}}
+setInterval(liveMailCheck,30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){LIVE.last=0;liveMailCheck()}});
+window.addEventListener('focus',()=>{LIVE.last=0;liveMailCheck()});
+openMail=(function(prev){return async function(threadId){await prev(threadId);try{const v=document.querySelector('#overlay .mv2');if(v)v.dataset.tid=threadId}catch{}}})(openMail);
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
