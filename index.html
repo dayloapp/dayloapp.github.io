@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610142327';
+const BUILD_ID='202610142330';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -4462,6 +4462,41 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
  .topbar .iconbtn svg,.top .iconbtn svg,header .iconbtn svg,.bell svg{width:27px!important;height:27px!important}
  .topbar .logo-mark svg,header .logo-mark svg{width:36px!important;height:36px!important}
 }
+`}));
+
+/* ===================== Clean-up: fewer buttons, calmer screens ===================== */
+/* no bell or + at the top (Today already shows what needs you; each page has its own add button) */
+document.head.append(Object.assign(document.createElement('style'),{textContent:`.bell,.bell.plus-btn,.bell.mic-btn{visibility:hidden!important;pointer-events:none!important}`}));
+/* no guest/demo boxes on Today */
+guestBanner=function(){return null};demoBanner=function(){return null};
+/* Contacts lives inside Deals & money; Notifications and Routines tucked away */
+try{for(let i=NAV.length-1;i>=0;i--){if(NAV[i][0]==='contacts')NAV.splice(i,1)}}catch{}
+moreMenu=function(){const items=[['campaigns','Deals & money',null,()=>{S.campStages=null;go('campaigns')}],['settings','Settings',null,()=>go('settings')]];
+  if(S.settings.demo&&typeof removeExamples==='function')items.push(['x','Remove the example data',null,()=>{removeExamples()}]);
+  if(typeof shareDaylo==='function')items.push(['spark','Share Daylo','Show a QR code to a friend',shareDaylo]);
+  openSheet('Menu',items)};
+pageCampaigns=(function(prev){return function(){const el=prev();try{
+  const cs=[...(S.contacts||[])].sort((a,b)=>(a.brand||a.name||'').localeCompare(b.brand||b.name||''));
+  if(cs.length){const pay=el.querySelector('.dm-pay');
+    const line=c=>{const mono=h('span',{class:'dm-mono',style:'background:#F1EEEA;width:34px;height:34px;font-size:15px'},(c.brand||c.name||'?').trim().charAt(0).toUpperCase());
+      const sub=[c.brand&&c.name&&c.name!==c.brand?c.name:null,c.email].filter(Boolean).join(' · ');
+      const tx=h('span',{class:'dm-tx'},h('b',{style:'font-size:16px'},c.brand||c.name||c.email),h('small',null,sub));
+      return h('button',{class:'ct-line',onclick:()=>openContact(c)},mono,tx)};
+    const sec=h('details',{class:'dm-closed dm-contacts'},h('summary',null,'Contacts · '+cs.length),cs.map(line),h('button',{class:'btn sm',style:'margin-top:8px',onclick:()=>openContact(null)},'+ Contact'));
+    if(pay)pay.before(sec);else el.append(sec)}
+}catch(e){console.error(e)}return el}})(pageCampaigns);
+pagePayments=function(){return pageCampaigns()};
+go=(function(prev){return function(p){return prev(p==='contacts'?'campaigns':p)}})(go);
+/* Schedule: just Calendar and Week; routines sit at the bottom of Week */
+pageSchedule=function(){
+  const v=S.schedView==='week'||S.schedView==='routines'?S.schedView:'day';
+  return h('div',{class:'page'},
+    h('div',{class:'tabs sc-tabs',role:'tablist','aria-label':'Schedule view'},[['day','Calendar'],['week','Week']].map(([k,l])=>h('button',{role:'tab','aria-selected':String(v===k||(k==='week'&&v==='routines')),onclick:()=>{S.schedView=k;renderMain()}},l))),
+    v==='day'?dayView():v==='routines'?simpleRoutines():[simpleWeek(),h('button',{class:'sw-rlink',onclick:()=>{S.schedView='routines';renderMain()}},h('span',null,'Routines'),h('span',null,(S.routines||[]).filter(r=>r.active!==false).length+' →'))]);
+};
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.ct-line{display:flex;align-items:center;gap:12px;width:100%;border:0;border-top:1px solid var(--line);background:none;padding:10px 2px;text-align:left;cursor:pointer;color:#141312;font:inherit}
+.sw-rlink{display:flex;justify-content:space-between;width:100%;max-width:640px;margin:16px auto 0;border:0;background:#F5F1EB;border-radius:16px;padding:14px 16px;cursor:pointer;font:600 12px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:#141312}
 `}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
