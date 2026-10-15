@@ -2655,7 +2655,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610151526';
+const BUILD_ID='202610151556';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -5601,6 +5601,106 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .fd-bar.arr{background:#ECE5DC;border-radius:16px;padding:8px 8px 8px 14px;color:#222120;font-weight:500}
 .fd-acts{display:flex;gap:6px}
 html[data-look="night"] .fd-bar.arr{background:#2A2826;color:#FAFAF9}html[data-look="night"] .dz-on::after{background:rgba(22,21,20,.85);color:#FAFAF9}
+`}));
+
+/* ===================== Brand email → your plan (one tap, or automatic if you switch it on) ===================== */
+const THREAD_CACHE={};
+gget=(function(prev){return async function(path,params,tries){const r=await prev(path,params,tries);try{if(/^threads\/[^/?]+$/.test(path)&&r&&r.messages)THREAD_CACHE[path.slice(8)]=r}catch{}return r}})(gget);
+const PL_WORDS={one:1,a:1,an:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10};
+function findDeliverables(t){
+  const out={};const add=(k,n)=>{out[k]=(out[k]||0)+n};
+  const re=/\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|an?)\s*(?:x\s*)?(?:ig\s+|instagram\s+|tiktok\s+|in-feed\s+|feed\s+|dedicated\s+)?(reels?|stories|story|ig stories|posts?|carousels?|tiktoks?|tik toks?|videos?|ugc videos?|photos?|images?|shorts?)\b/gi;
+  let m;while((m=re.exec(t))){const w=m[1].toLowerCase();const n=PL_WORDS[w]||Number(w)||1;const k=m[2].toLowerCase();
+    if(/reel/.test(k))add('Reel',n);else if(/stor/.test(k))add('Story',n);else if(/tik/.test(k))add('TikTok',n);else if(/carousel/.test(k))add('Carousel',n);
+    else if(/video|short/.test(k))add(/tiktok/i.test(t.slice(Math.max(0,m.index-30),m.index+40))?'TikTok':'Reel',n);else if(/post/.test(k))add('Post',n);else if(/photo|image/.test(k))add('Photos',n)}
+  return out}
+function findTime(t){const m=t.match(/\b(?:by|at|before|until|@)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)/i)||t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+  if(!m)return '';let hr=Number(m[1])%12;if(/p/i.test(m[3]))hr+=12;return String(hr).padStart(2,'0')+':'+(m[2]||'00')}
+function planFromThread(t){
+  try{const ms=(t.messages||[]).map(m=>({m,p:parseMsg(m)})).filter(x=>x.p);if(!ms.length)return null;
+    const me=(hintEmail()||'').toLowerCase();const them=[...ms].reverse().find(x=>!x.p.mine&&(x.p.from.email||'').toLowerCase()!==me);if(!them||them.p.bulk)return null;
+    const text=them.p.subject+'\n'+(them.p.text||'');const all=ms.map(x=>x.p.subject+'\n'+(x.p.text||'')).join('\n');
+    const del=findDeliverables(text);const amt=findAmount(all);const due=findDate(text,them.p.at);const time=findTime(text);
+    const isDeal=KW.deal.test(all)||XCOLLAB.test(them.p.subject);
+    if(!isDeal&&!Object.keys(del).length)return null;
+    if(!Object.keys(del).length&&(!due||/\b(invoice|payment|paid|receipt|refund)\b/i.test(all)))return null;
+    const shoot=KW.film.test(text)&&due&&/\bshoot|film/i.test(text)?due:null;
+    const brand=guessBrand(them.p.from)||them.p.fromName;
+    return {threadId:t.id,brand,campaign:them.p.subject.replace(/^(re|fwd?):\s*/i,'').slice(0,60),email:them.p.from.email,amount:amt,due,time,del,shoot,
+      agreed:/\b(confirm(ed)?|agreed|approved|contract (attached|signed)|you('re| are) booked|locked in)\b/i.test(all),gifted:!amt&&/\bgift/i.test(all)}
+  }catch(e){console.error(e);return null}}
+function planLines(pl){const L=[];const del=pl.del||{};
+  const delTxt=Object.entries(del).map(([k,n])=>n+' '+(n===1?k.toLowerCase():({Story:'stories',Reel:'reels',Post:'posts',TikTok:'TikToks',Carousel:'carousels',Photos:'photos'}[k]||k.toLowerCase()+'s'))).join(' + ');
+  L.push(['Deal',pl.brand+(pl.amount?' · '+m0(pl.amount):pl.gifted?' · Gifted':'')]);
+  if(delTxt)L.push(['Posts',delTxt]);
+  if(pl.due)L.push(['Due',ctShortDate(pl.due)+(pl.time?' · '+fmtTime(pl.time):'')]);
+  if(pl.shoot&&pl.shoot!==pl.due)L.push(['Shoot',ctShortDate(pl.shoot)]);
+  return L}
+async function addPlan(pl,auto){
+  const made={camp:null,posts:[],tasks:[]};
+  const ex=(S.campaigns||[]).find(c=>c.threadId===pl.threadId);
+  const dtxt=Object.entries(pl.del||{}).map(([k,n])=>n+' '+k+(n>1&&!/s$/.test(k)?(k==='Story'?'':'s'):'')).join(' + ').replace(/(\d+) Story/,'$1 Stories').replace(/1 Stories/,'1 Story');
+  if(ex)made.camp=ex.id;
+  else made.camp=await save('campaigns',{brand:pl.brand,campaign:pl.campaign,contactEmail:pl.email,threadId:pl.threadId,stage:pl.agreed?'Booked':'Negotiating',dealType:pl.amount?'Paid':(pl.gifted?'Gifted':'Paid'),
+    ...(pl.amount?(pl.agreed?{feeConfirmed:pl.amount.n}:{feeProposed:pl.amount.n}):{}),...(pl.due?{dueDate:pl.due}:{}),deliverables:dtxt,notes:'Added from '+pl.brand+'’s email.'});
+  const types=Object.entries(pl.del||{});
+  for(const [k,n] of types){const type=k==='Story'?'Story':k==='TikTok'?'TikTok':k==='Reel'?'Reel':'Post';
+    const title=(n>1?n+' ':'')+(k==='Story'?(n>1?'stories':'Story'):k==='Photos'?'photos':k==='Carousel'?'carousel':k.toLowerCase()==='post'?'post':k)+' · '+pl.brand;
+    made.posts.push(await save('posts',{title,type,date:pl.due||null,time:pl.time||'',step:0,brand:pl.brand,campaignId:made.camp,threadId:pl.threadId}))}
+  if(!types.length&&pl.due)made.posts.push(await save('posts',{title:pl.brand+' post',type:'Post',date:pl.due,time:pl.time||'',step:0,brand:pl.brand,campaignId:made.camp,threadId:pl.threadId}));
+  if(pl.shoot&&pl.shoot!==pl.due)made.posts.push(await save('posts',{title:'Shoot · '+pl.brand,type:'Shoot',date:pl.shoot,step:0,brand:pl.brand,campaignId:made.camp,threadId:pl.threadId}));
+  if(pl.due)made.tasks.push(await save('tasks',{title:'Post '+pl.brand+(pl.time?' by '+fmtTime(pl.time):''),type:'Other',due:pl.due,time:pl.time||'',done:false,campaignId:made.camp,gmailThread:pl.threadId}));
+  const planned={...(S.settings.planned||{})};planned[pl.threadId]={...made,newCamp:!ex,at:Date.now()};await saveSettings({planned});
+  const n=made.posts.length+made.tasks.length+(ex?0:1);
+  toastUndo((auto?'Added from '+pl.brand+'’s email':'Added '+n+(n===1?' thing':' things')+'. Your plan just got smarter.'),()=>undoPlan(pl.threadId));
+  try{renderSide()}catch{}if(['schedule','today','campaigns'].includes(page))renderMain();
+  return made}
+async function undoPlan(tid){const pm=(S.settings.planned||{})[tid];if(!pm)return;
+  for(const id of pm.posts||[])await removeDoc('posts',id);for(const id of pm.tasks||[])await removeDoc('tasks',id);if(pm.newCamp&&pm.camp)await removeDoc('campaigns',pm.camp);
+  const planned={...(S.settings.planned||{})};delete planned[tid];await saveSettings({planned});toast('Undone. Nothing was added.');
+  document.querySelectorAll('.pl-card').forEach(c=>c.dispatchEvent(new Event('pl-redraw')));if(['schedule','today','campaigns'].includes(page))renderMain()}
+function toastUndo(msg,fn){toast(msg);const t=document.getElementById('toast');if(!t)return;const b=h('button',{class:'toast-undo',onclick:()=>{b.remove();t.hidden=true;fn()}},'Undo');t.append(b);try{clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,8000)}catch{}}
+function planCard(pl){
+  const card=h('section',{class:'pl-card'});
+  const draw=()=>{const done=(S.settings.planned||{})[pl.threadId];
+    if(done){const n=(done.posts||[]).length+(done.tasks||[]).length+(done.newCamp?1:0);
+      card.replaceChildren(h('div',{class:'pl-h'},icon('check'),h('b',null,'In your plan'),h('span',null,n+(n===1?' thing':' things')+' from this email')),
+        h('div',{class:'pl-row'},h('button',{class:'btn',onclick:()=>{closeDrawer();go('schedule');setView('content')}},'See it on your calendar'),h('button',{class:'btn ghost',onclick:()=>undoPlan(pl.threadId)},'Undo')));return}
+    card.replaceChildren(h('div',{class:'pl-h'},sparkIcon(),h('b',null,'Daylo found a plan in this email')),
+      h('ul',{class:'pl-list'},planLines(pl).map(([k,v])=>h('li',null,h('span',null,k),h('b',null,v)))),
+      h('div',{class:'pl-row'},h('button',{class:'btn primary',onclick:async e=>{e.currentTarget.disabled=true;await addPlan(pl,false);draw()}},'Add to my plan'),h('button',{class:'btn ghost',onclick:()=>{const sk=[...(S.settings.planSkip||[]),pl.threadId];saveSettings({planSkip:sk});card.remove()}},'Not now')),
+      h('label',{class:'pl-auto'},h('input',{type:'checkbox',checked:!!S.settings.autoPlan,onchange:e=>{saveSettings({autoPlan:e.target.checked});toast(e.target.checked?'From now on, plans from brand emails are added for you. You can undo each one.':'Okay, Daylo will ask first.')}}),h('span',null,'Always add plans from brand emails')))};
+  card.addEventListener('pl-redraw',draw);draw();return card}
+function sparkIcon(){const s=document.createElement('span');s.className='pl-sp';s.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3v5M12 16v5M3 12h5M16 12h5M6.3 6.3l3 3M14.7 14.7l3 3M6.3 17.7l3-3M14.7 9.3l3-3"/></svg>';return s}
+openMail=(function(prev){return async function(threadId){await prev(threadId);try{
+  const t=THREAD_CACHE[threadId];if(!t)return;const pl=planFromThread(t);if(!pl)return;
+  if((S.settings.planSkip||[]).includes(threadId)&&!(S.settings.planned||{})[threadId])return;
+  const head=document.querySelector('#overlay .mv2-head');if(!head)return;
+  if(S.settings.autoPlan&&!(S.settings.planned||{})[threadId])await addPlan(pl,true);
+  head.after(planCard(pl));
+}catch(e){console.error(e)}}})(openMail);
+
+/* Today: the next post, with its photo */
+function nextPostCard(){const t=ymd();const p=ctPosts().filter(x=>x.date&&x.date>=t&&(x.step||0)<4&&x.type!=='Shoot').sort((a,b)=>ctKey(a).localeCompare(ctKey(b)))[0];if(!p)return null;
+  const d=parseYmd(p.date);const diff=Math.round((d-parseYmd(t))/864e5);const day=diff===0?'Today':diff===1?'Tomorrow':diff<7?d.toLocaleDateString(undefined,{weekday:'short'}):d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+  return h('button',{class:'np-card',onclick:()=>openPost(p)},p.img?imgEl(p.img,'np-th'):h('span',{class:'np-th ph'}),p.boardId?h('span',{class:'np-tape'}):null,
+    h('span',{class:'np-tx'},h('span',{class:'ct-lbl'},'Next post'),h('b',null,p.title||ctLabel(p))),h('span',{class:'np-w'},h('span',null,day),h('small',null,[p.time?fmtTime(p.time):null,p.type].filter(Boolean).join(' · '))))}
+pageToday=(function(prev){return function(){const el=prev();try{const c=nextPostCard();if(c){const nx=el.querySelector('.nx');if(nx)nx.after(c);else{const add=el.querySelector('.add-sm, .dk-add');if(add)add.before(c);else{const cv=el.querySelector('.cv');if(cv)cv.after(c)}}}}catch(e){console.error(e)}return el}})(pageToday);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.pl-card{margin:14px 0 6px;border-radius:22px;background:rgba(244,240,234,.92);border:1px solid #fff;box-shadow:0 10px 26px rgba(40,34,28,.08);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.pl-h{display:flex;align-items:center;gap:8px;font:600 13px var(--f-body);color:#222120}.pl-h span:last-child:not(.pl-sp){font-weight:400;color:#857A70;margin-left:auto;font-size:12.5px}
+.pl-sp{display:grid;place-items:center}
+.pl-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}.pl-list li{display:flex;gap:10px;font-size:14px}.pl-list li span{width:58px;flex:none;color:#857A70;font-size:12.5px;padding-top:1px}.pl-list li b{font-weight:500}
+.pl-row{display:flex;gap:8px}.pl-row .btn{flex:1;justify-content:center}
+.pl-auto{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#6F6C67;cursor:pointer}.pl-auto input{width:16px;height:16px;accent-color:#222120}
+.toast-undo{pointer-events:auto;border:0;background:#FAFAF9;color:#222120;border-radius:999px;padding:4px 12px;margin-left:10px;font:600 12.5px var(--f-body);cursor:pointer}
+.np-card{display:flex;align-items:center;gap:14px;width:100%;border:1px solid #ECE5DC;background:#FAFAF9;border-radius:22px;padding:10px 14px 10px 10px;cursor:pointer;text-align:left;font:inherit;color:#222120;position:relative;margin-top:2px}
+.np-th{width:54px;height:66px;border-radius:12px;object-fit:cover;flex:none}.np-th.ph{background:#ECE5DC}
+.np-tape{position:absolute;left:38px;top:6px;width:24px;height:9px;background:#DCD7D0;transform:rotate(14deg)}
+.np-tx{display:flex;flex-direction:column;gap:3px;min-width:0}.np-tx b{font:500 15px var(--f-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np-w{margin-left:auto;text-align:right;flex:none}.np-w span{display:block;font:400 18px Lora,Georgia,serif}.np-w small{font-size:11.5px;color:#857A70}
+html[data-look="night"] .pl-card{background:rgba(30,28,27,.92);border-color:#2E2B29}html[data-look="night"] .pl-h,html[data-look="night"] .np-card{color:#FAFAF9}
+html[data-look="night"] .np-card{background:#1E1C1B;border-color:#2E2B29}
 `}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
