@@ -2645,7 +2645,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610150832';
+const BUILD_ID='202610150836';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -4783,6 +4783,18 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .nx-tx b{font:500 16.5px var(--f-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nx-w{font:400 19px Lora,Georgia,serif;color:#141312;flex:none}
 `}));
+
+/* A3: "+ Add something" under the Next line; money number not highlighted */
+function addSheet(){openSheet('Add',[
+  ['schedule','Task','Shows up on Today',()=>openTask({type:'Other',due:ymd(),done:false})],
+  ['pen','Note',null,()=>{go('notes');setTimeout(()=>openNote({}),60)}],
+  ['campaigns','Deal',null,()=>openCampaign(null)],
+  ['mail','Email',null,()=>openComposer({})]])}
+pageToday=(function(prev){return function(){const el=prev();try{
+  el.querySelectorAll('.cv-hi').forEach(n=>n.classList.remove('cv-hi'));
+  if(window.innerWidth<1000){const anchor=el.querySelector('.nx')||el.querySelector('.cv');if(anchor)anchor.after(h('button',{class:'add-sm',onclick:addSheet},'+ Add something'))}
+}catch(e){console.error(e)}return el}})(pageToday);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`.add-sm{align-self:flex-start;border:0;background:none;padding:4px 8px;font:600 14.5px var(--f-body);color:#141312;cursor:pointer}`}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
