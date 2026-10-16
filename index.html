@@ -2521,7 +2521,7 @@ async function sendViaGmail(){
   if(snap.cc&&snap.cc.trim())lines.push('Cc: '+emails(snap.cc).join(', '));
   lines.push('Subject: '+encHdr(snap.subject||''));
   if(snap.gmail&&snap.gmail.msgId){lines.push('In-Reply-To: '+snap.gmail.msgId);lines.push('References: '+(snap.gmail.refs||snap.gmail.msgId))}
-  const bodyB64=(()=>{const u=new TextEncoder().encode(snap.body||'');let s='';u.forEach(c=>s+=String.fromCharCode(c));return btoa(s).replace(/(.{76})/g,'$1\r\n')})();
+  const bodyB64=(()=>{const u=new TextEncoder().encode((snap.body||'').replace(/\s+$/,'')+(snap.quote||''));let s='';u.forEach(c=>s+=String.fromCharCode(c));return btoa(s).replace(/(.{76})/g,'$1\r\n')})();
   const htmlB64=snap.trackHtml?(()=>{const u=new TextEncoder().encode(snap.trackHtml);let s='';u.forEach(c=>s+=String.fromCharCode(c));return btoa(s).replace(/(.{76})/g,'$1\r\n')})():null;
   const altBd='dalt_'+Date.now().toString(36);const textPart=htmlB64?['Content-Type: multipart/alternative; boundary="'+altBd+'"','','--'+altBd,'Content-Type: text/plain; charset=UTF-8','Content-Transfer-Encoding: base64','',bodyB64,'--'+altBd,'Content-Type: text/html; charset=UTF-8','Content-Transfer-Encoding: base64','',htmlB64,'--'+altBd+'--']:['Content-Type: text/plain; charset=UTF-8','Content-Transfer-Encoding: base64','',bodyB64];
   if(snap.attach&&snap.attach.length){const bd='daylo_'+Date.now().toString(36);lines.push('MIME-Version: 1.0','Content-Type: multipart/mixed; boundary="'+bd+'"','','--'+bd,...textPart);
@@ -2663,7 +2663,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610152030';
+const BUILD_ID='202610152037';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -6251,12 +6251,20 @@ const SIGN_RE=/(?:^|[\s.!,])((?:best regards|kind regards|warm regards|warmest r
 const CONTR={im:"I'm",ive:"I've",ill:"I'll",dont:"don't",cant:"can't",wont:"won't",didnt:"didn't",doesnt:"doesn't",isnt:"isn't",wasnt:"wasn't",arent:"aren't",couldnt:"couldn't",wouldnt:"wouldn't",shouldnt:"shouldn't",thats:"that's",whats:"what's",theres:"there's",youre:"you're",theyre:"they're",weve:"we've",youve:"you've",lets:null,id:null};
 function cleanSentences(t){const keep=[];let s=String(t||'').replace(/(https?:\/\/\S+|www\.\S+|[\w.+-]+@[\w-]+\.[\w.-]+|@[\w.]+|\b[\w-]+\.(?:com|net|org|co|io|app|me|shop|store)(?:\/\S*)?)/gi,m=>{const tr=m.match(/[.,!?)]+$/);const core=tr?m.slice(0,-tr[0].length):m;keep.push(core);return '\u0000'+(keep.length-1)+'\u0001'+(tr?tr[0]:'')}).replace(/[ \t]+/g,' ').replace(/ ?\n ?/g,'\n');
   s=s.replace(/\s+([,.!?;:])/g,'$1').replace(/([,;:])(?=[^\s\d\n])/g,'$1 ').replace(/([.!?])(?=[A-Za-zÀ-ÿ])/g,(m,p,o,str)=>{const before=str.slice(Math.max(0,o-4),o);return /\b(e\.g|i\.e|www|\.com)$/i.test(before)?m:p+' '});
+  // split run-on sentences before common sentence starters
+  const START=/\s+(?=(?:i love|i'm|im|i don't|i dont|i do not|i didn't|i didnt|i need|i got|i haven't|i havent|i am|i will|i'll|i would|i'd|i think|i can|i have|i've|ive|i just|i wanted|i want|i hope|i was|can you|could you|would you|do you|let me know|please|looking forward|hope you|thank you|thanks again|it was|it's|we can|we could|we will|you can|is there|are you|what do you|when can|how about)\b)/gi;
+  s=s.split('\n').map(line=>{let out='',seg='';const parts=line.split(START);parts.forEach((pt,k)=>{if(k===0){out=pt;seg=pt;return}const words=seg.replace(/.*[.!?,:;]\s*/,'').trim().split(/\s+/).filter(Boolean).length;
+    if(words>=3&&!/[.!?,:;]\s*$/.test(out)&&!/\b(and|or|but|so|that|because|if|when|as|to|than|who|which|thinking|think|thought|hope|hoping|know|sure|guess|feel|believe|wondering|wonder|mean|say|said|wish|maybe|where|why|how)\s*$/i.test(out))out=out.replace(/\s*$/,'')+'. '+pt;else out=out+' '+pt;seg=pt});return out}).join('\n');
+  // commas: after intro words, before "but"
+  s=s.replace(/(^|[.!?]\s+|\n)(also|however|so|yes|no|well|honestly|unfortunately|actually|anyway|by the way|of course|otherwise|meanwhile|btw|plus|luckily|sadly|then|hopefully)(?=\s+[a-z])(?!,)/gi,'$1$2,');
+  s=s.replace(/([a-z]{2,}(?:\s+\S+){2,}?)\s+(but|so that)\s+/gi,(m,a,b)=>/,\s*$/.test(a)?m:a+', '+b+' ');
   s=s.replace(/\bi\b(?!\.e\.)/g,'I').replace(/\b(\w+)\b/g,w=>{const k=w.toLowerCase();return CONTR[k]&&!/[A-Z]{2,}/.test(w)?CONTR[k]:w});
   s=s.replace(/(^|[.!?]\s+|\n)([a-zà-ÿ])/g,(m,a,b)=>a+b.toUpperCase());
   s=s.replace(/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|april|june|july|august|september|october|november|december|instagram|tiktok|youtube|pinterest)\b/gi,w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase());
   s=s.replace(/!{2,}/g,'!').replace(/\?{2,}/g,'?').replace(/\.{4,}/g,'...').replace(/,{2,}/g,',');
+  s=s.replace(/(^|[.!?]\s+|\n)((?:can|could|would|will|do|does|did|are|is|was|were|should|shall|may|what|when|where|why|how|who|which)\b[^.!?\n]{3,}?)\.(?=\s|$)/gi,(m,a,q)=>a+q+'?');
   return s.replace(/\u0000(\d+)\u0001/g,(m,i)=>keep[Number(i)])}
-function endPunct(par){const p=par.trim();if(!p)return p;if(/[.!?…:)"”’\]]$/.test(p)||/https?:\/\/\S+$/.test(p)||/\p{Extended_Pictographic}$/u.test(p))return p;return p+'.'}
+function endPunct(par){let p=par.trim();if(!p)return p;const lastS=(p.match(/[^.!?]*$/)||[''])[0].trim();if(lastS&&/^(can|could|would|will|do|does|did|are|is|was|were|should|what|when|where|why|how|who)\b/i.test(lastS)&&!/[.!?…)"”’\]]$/.test(p))return p+'?';if(/[.!?…:)"”’\]]$/.test(p)||/https?:\/\/\S+$/.test(p)||/\p{Extended_Pictographic}$/u.test(p))return p;return p+'.'}
 function shapeEmail(raw){let text=String(raw||'').replace(/\r/g,'').trim();if(!text)return text;
   const sig=(S.settings&&S.settings.signature)||'';let tailSig='';if(sig&&text.endsWith(sig.trim())){tailSig=sig.trim();text=text.slice(0,-tailSig.length).trim()}
   let greet='';{const gm=text.match(/^\s*(good (?:morning|afternoon|evening)|hi|hello|hey|hiya|dear|greetings|hola|bonjour|ciao)\b[ \t]*/i);
@@ -6277,8 +6285,8 @@ function shapeEmail(raw){let text=String(raw||'').replace(/\r/g,'').trim();if(!t
 async function polishEmail(ta,box){const before=ta.value;if(!before.trim()){toast('Write something first');return}
   const b=document.getElementById('ck-btn');if(b){b.disabled=true;b.lastChild.textContent='Polishing…'}
   let v=before;
-  try{const r=await fetch('https://api.languagetool.org/v2/check',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({text:v,language:'auto',preferredVariants:'en-US'})});const j=await r.json();
-    (j.matches||[]).filter(m=>m.replacements&&m.replacements.length&&!/WHITESPACE|EN_QUOTES|DASH_RULE|ELLIPSIS/.test((m.rule||{}).id||'')).sort((a,b)=>b.offset-a.offset).forEach(m=>{const rep=m.replacements[0].value;if(/\p{Extended_Pictographic}/u.test(v.substr(m.offset,m.length)))return;v=v.slice(0,m.offset)+rep+v.slice(m.offset+m.length)})}catch{}
+  try{const r=await fetch('https://api.languagetool.org/v2/check',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({text:v,language:/\b(the|and|you|for|thanks|hi|hello|please|is|are)\b/i.test(v)?'en-US':'auto',level:'picky',...(/\b(the|and|you)\b/i.test(v)?{}:{preferredVariants:'en-US'})})});const j=await r.json();
+    (j.matches||[]).filter(m=>m.replacements&&m.replacements.length&&!/WHITESPACE|EN_QUOTES|DASH_RULE|ELLIPSIS|PASSIVE|TOO_LONG|WORDINESS|SENT_START_CONJUNCTION|E_PRIME|PROFANITY/.test((m.rule||{}).id||'')&&!/^(style)$/i.test(((m.rule||{}).category||{}).id||'')).sort((a,b)=>b.offset-a.offset).forEach(m=>{const rep=m.replacements[0].value;if(/\p{Extended_Pictographic}/u.test(v.substr(m.offset,m.length)))return;v=v.slice(0,m.offset)+rep+v.slice(m.offset+m.length)})}catch{}
   v=shapeEmail(v);
   if(ta.value===before){ta.value=v;if(CP)CP.body=v;ta.dispatchEvent(new Event('input',{bubbles:true}))}
   if(b){b.disabled=false;b.lastChild.textContent='Polish'}
@@ -6405,7 +6413,7 @@ function emailHtml(text,tid){const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'
 sendViaGmail=(function(prev){return async function(){try{const snap=CP;if(snap&&!snap.trackId&&snap.track!==false&&S.settings.trackOpens!==false&&CL.sess&&await trackProbe()){
     const tid=trackId();const to=emails(snap.to)[0]||'';
     const r=await sbFetch('/rest/v1/mail_tracks',{method:'POST',headers:{'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify({track_id:tid,to_email:to,subject:(snap.subject||'').slice(0,200),thread_id:snap.gmail&&snap.gmail.threadId||null})});
-    if(r.ok){snap.trackId=tid;snap.trackHtml=emailHtml(snap.body,tid)}}}catch(e){console.error(e)}return prev()}})(sendViaGmail);
+    if(r.ok){snap.trackId=tid;snap.trackHtml=emailHtml((snap.body||'').replace(/\s+$/,'')+(snap.quote||''),tid)}}}catch(e){console.error(e)}return prev()}})(sendViaGmail);
 async function trackAfterSend(snap,j){try{if(j&&j.threadId)await sbFetch('/rest/v1/mail_tracks?track_id=eq.'+snap.trackId,{method:'PATCH',headers:{'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify({thread_id:j.threadId})})}catch(e){console.error(e)}}
 /* load who opened what */
 async function trackLoad(){if(!CL.sess||!(await trackProbe()))return;try{const r=await sbFetch('/rest/v1/mail_tracks?select=track_id,thread_id,sent_at,mail_opens(opened_at)&thread_id=not.is.null&order=sent_at.desc&limit=300');if(!r.ok)return;const rows=await r.json();
@@ -6485,6 +6493,35 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .td-sub{font:600 9.5px var(--f-body);letter-spacing:.18em;text-transform:uppercase;color:#857A70;margin:12px 0 2px}
 .td-row.dk{padding:9px 0}
 html[data-look="night"] .td-box{background:rgba(30,28,27,.7);border-color:#2E2B29}html[data-look="night"] .td-tx{color:#FAFAF9}html[data-look="night"] .td-w.late{color:#FAFAF9}
+`}));
+
+/* ===================== Replying: see the email you're answering, and quote it like Gmail ===================== */
+async function replyCtx(){if(!CP||!CP.gmail||!CP.gmail.threadId)return null;const tid=CP.gmail.threadId;
+  let t=THREAD_CACHE[tid];if(!t&&tokOk()){try{t=await gget('threads/'+tid,{format:'full'});THREAD_CACHE[tid]=t}catch{return null}}if(!t)return null;
+  const ms=(t.messages||[]).map(m=>({m,p:parseMsg(m)})).filter(x=>x.p);const them=[...ms].reverse().find(x=>!x.p.mine)||ms[ms.length-1];if(!them)return null;
+  const hb=typeof mailHtmlOf==='function'?mailHtmlOf(them.m.payload):null;let text=them.p.text||'';if((!text||text.length<20)&&hb)text=htmlText(hb.html).replace(/[ \t]+/g,' ').replace(/\n\s*\n\s*/g,'\n\n').trim();
+  return {name:them.p.fromName,email:them.p.from.email,at:them.p.at,subject:them.p.subject,text,count:ms.length}}
+async function replyCard(){try{const c=await replyCtx();if(!c||!CP)return;CP.replyTo=c;const ta=document.getElementById('cp-body');if(!ta||document.querySelector('#overlay .rp-card'))return;
+  const fld=ta.closest('.field');if(!fld)return;const when=new Date(c.at).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+' · '+new Date(c.at).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+  const short=c.text.split('\n').filter(l=>l.trim()).slice(0,3).join('\n');const full=c.text.length>short.length+5;
+  const body=h('div',{class:'rp-txt'},short);
+  const card=h('div',{class:'rp-card'},h('div',{class:'rp-h'},h('span',{class:'rp-k'},'Replying to'),h('span',{class:'rp-w'},when)),h('b',{class:'rp-n'},c.name+(c.email&&c.email!==c.name?' · '+c.email:'')),h('div',{class:'rp-s'},c.subject.replace(/^(re|fwd?):\s*/i,'')),body,
+    full?h('button',{type:'button',class:'rp-more',onclick:e=>{const open=card.classList.toggle('open');body.textContent=open?c.text:short;e.currentTarget.textContent=open?'Show less':'Show the whole email'}},'Show the whole email'):null);
+  fld.before(card);
+  const nm0=((typeof invMe==='function'&&invMe().sign)||myName()||'').split(' ')[0];const rawSig=(S.settings.signature||'').trim();if(ta.value.trim()===''||/^\s*$/.test(ta.value.replace(rawSig,'').replace(rawSig.replace(/\[Your name\]/g,nm0),''))){const first=(c.name||'').split(/[\s@]/)[0];if(first&&!/^(no-?reply|info|hello|team|support)$/i.test(first)){const sig=(S.settings.signature||'').trim().replace(/\[Your name\]/g,((typeof invMe==='function'&&invMe().sign)||myName()||'').split(' ')[0]);ta.value='Hi '+first.charAt(0).toUpperCase()+first.slice(1)+',\n\n'+(sig?'\n\n'+sig:'');CP.body=ta.value;ta.setSelectionRange(('Hi '+first+',\n\n').length,('Hi '+first+',\n\n').length)}}
+}catch(e){console.error(e)}}
+openComposer=(function(prev){return function(o){prev(o);try{const nm=(typeof invMe==='function'&&invMe().sign)||myName();if(CP&&nm&&/\[Your name\]/.test(CP.body||'')){CP.body=CP.body.replace(/\[Your name\]/g,nm.split(' ')[0]);const ta=document.getElementById('cp-body');if(ta)ta.value=CP.body}}catch{}setTimeout(()=>{if(CP&&CP.gmail&&CP.gmail.threadId)replyCard()},0)}})(openComposer);
+drawComposer=(function(prev){return function(){prev();try{if(CP&&CP.step==='edit'&&CP.gmail&&CP.gmail.threadId&&!document.querySelector('#overlay .rp-card'))replyCard()}catch{}}})(drawComposer);
+/* the sent reply carries the quoted email underneath, like Gmail */
+sendViaGmail=(function(prev){return async function(){try{const c=CP&&CP.replyTo;if(c&&!CP._quoted&&c.text){const d=new Date(c.at);const head='On '+d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'})+' at '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})+', '+c.name+(c.email?' <'+c.email+'>':'')+' wrote:';
+  CP.quote='\n\n'+head+'\n'+c.text.split('\n').map(l=>'> '+l).join('\n');CP._quoted=true}}catch(e){console.error(e)}return prev()}})(sendViaGmail);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.rp-card{grid-column:1/-1;background:#F4F0EA;border-radius:18px;padding:12px 16px;display:flex;flex-direction:column;gap:3px;margin:2px 0 6px;border-left:3px solid #DCD7D0}
+.rp-h{display:flex;justify-content:space-between;align-items:center}.rp-k{font:600 9.5px var(--f-body);letter-spacing:.16em;text-transform:uppercase;color:#857A70}.rp-w{font-size:11.5px;color:#857A70}
+.rp-n{font:600 14px var(--f-body);color:#222120;overflow-wrap:anywhere}.rp-s{font:italic 400 15px Lora,Georgia,serif;color:#222120}
+.rp-txt{font-size:13.5px;line-height:1.5;color:#5F5B57;white-space:pre-line;max-height:4.6em;overflow:hidden;margin-top:4px}.rp-card.open .rp-txt{max-height:none}
+.rp-more{align-self:flex-start;border:0;background:none;padding:4px 0 0;font:600 12.5px var(--f-body);color:#222120;cursor:pointer}
+html[data-look="night"] .rp-card{background:#1E1C1B;border-color:#2E2B29}html[data-look="night"] .rp-n,html[data-look="night"] .rp-s,html[data-look="night"] .rp-more{color:#FAFAF9}html[data-look="night"] .rp-txt{color:#B9AC9F}
 `}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
