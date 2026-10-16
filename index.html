@@ -2663,7 +2663,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610161506';
+const BUILD_ID='202610161509';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -6247,24 +6247,36 @@ html[data-look="night"] .mn-row{color:#FAFAF9;border-color:#2E2B29}html[data-loo
 
 /* ===================== Writing emails: Polish rewrites the whole email; attach invoices, photos, links, emoji ===================== */
 const GREET_RE=/^\s*((?:hi|hello|hey|hiya|dear|good (?:morning|afternoon|evening)|greetings|hola|bonjour|ciao)\b(?:\s+(?:there|team|all|everyone|guys))?(?:\s+[A-ZÀ-Ý][\wÀ-ÿ'’.-]*(?:\s+[A-ZÀ-Ý][\wÀ-ÿ'’.-]*)?(?:\s+team)?)?)\s*[,!.:-]?\s*/i;
-const SIGN_RE=/(?:^|[\s.!,])((?:best regards|kind regards|warm regards|warmest regards|many thanks|thanks so much|thank you so much|thanks again|thank you|thanks|best wishes|best|regards|cheers|warmly|xoxo|xo|love|talk soon|speak soon|sincerely|all the best|have a great day|have a lovely day))\s*[,!.:-]?\s*((?:[A-ZÀ-Ý][\wÀ-ÿ'’.-]*)(?:\s+[A-ZÀ-Ý][\wÀ-ÿ'’.-]*)?)?\s*$/i;
+const SIGN_RE=/(?:^|[\s.!,])((?:best regards|kind regards|warm regards|warmest regards|many thanks|thanks so much|thank you so much|thanks again|thank you|thanks|best wishes|best|regards|cheers|warmly|xoxo|xo|love|talk soon|speak soon|sincerely|all the best|have a great day|have a lovely day))\s*[,!.:-]*\s*((?:[A-ZÀ-Ý][\wÀ-ÿ'’.-]*)(?:\s+[A-ZÀ-Ý][\wÀ-ÿ'’.-]*)?)?\s*$/i;
 const CONTR={im:"I'm",ive:"I've",ill:"I'll",dont:"don't",cant:"can't",wont:"won't",didnt:"didn't",doesnt:"doesn't",isnt:"isn't",wasnt:"wasn't",arent:"aren't",couldnt:"couldn't",wouldnt:"wouldn't",shouldnt:"shouldn't",thats:"that's",whats:"what's",theres:"there's",youre:"you're",theyre:"they're",weve:"we've",youve:"you've",lets:null,id:null};
 function cleanSentences(t){const keep=[];let s=String(t||'').replace(/(https?:\/\/\S+|www\.\S+|[\w.+-]+@[\w-]+\.[\w.-]+|@[\w.]+|\b[\w-]+\.(?:com|net|org|co|io|app|me|shop|store)(?:\/\S*)?)/gi,m=>{const tr=m.match(/[.,!?)]+$/);const core=tr?m.slice(0,-tr[0].length):m;keep.push(core);return '\u0000'+(keep.length-1)+'\u0001'+(tr?tr[0]:'')}).replace(/[ \t]+/g,' ').replace(/ ?\n ?/g,'\n');
   s=s.replace(/\s+([,.!?;:])/g,'$1').replace(/([,;:])(?=[^\s\d\n])/g,'$1 ').replace(/([.!?])(?=[A-Za-zÀ-ÿ])/g,(m,p,o,str)=>{const before=str.slice(Math.max(0,o-4),o);return /\b(e\.g|i\.e|www|\.com)$/i.test(before)?m:p+' '});
   // split run-on sentences before common sentence starters
-  const START=/\s+(?=(?:i love|i'm|im|i don't|i dont|i do not|i didn't|i didnt|i need|i got|i haven't|i havent|i am|i will|i'll|i would|i'd|i think|i can|i have|i've|ive|i just|i wanted|i want|i hope|i was|can you|could you|would you|do you|let me know|please|looking forward|hope you|thank you|thanks again|it was|it's|we can|we could|we will|you can|is there|are you|what do you|when can|how about)\b)/gi;
+  const START=/\s+(?=(?:i love|i'm|im|i don't|i dont|i do not|i didn't|i didnt|i need|i got|i haven't|i havent|i am|i will|i'll|i would|i'd|i think|i can|i have|i've|ive|i just|i wanted|i want|i hope|i was|can you|could you|would you|do you|let me know|please(?!\s*[?.!,]|\s*$)|looking forward|hope you|thank you|thanks again|it was|it's|its been|we can|we could|we will|you can|is there|are you|what do you|when can|when is|when are|when do|what is|what are|what works|what time|where is|where do|how much|how many|which one|which day|the (?:shoot|post|reel|content|draft|story|video|campaign|event|party|dinner) (?:is|will|was|can))\b)/gi;
   s=s.split('\n').map(line=>{let out='',seg='';const parts=line.split(START);parts.forEach((pt,k)=>{if(k===0){out=pt;seg=pt;return}const words=seg.replace(/.*[.!?,:;]\s*/,'').trim().split(/\s+/).filter(Boolean).length;
     if(words>=3&&!/[.!?,:;]\s*$/.test(out)&&!/\b(and|or|but|so|that|because|if|when|as|to|than|who|which|thinking|think|thought|hope|hoping|know|sure|guess|feel|believe|wondering|wonder|mean|say|said|wish|maybe|where|why|how)\s*$/i.test(out))out=out.replace(/\s*$/,'')+'. '+pt;else out=out+' '+pt;seg=pt});return out}).join('\n');
   // commas: after intro words, before "but"
   s=s.replace(/(^|[.!?]\s+|\n)(also|however|so|yes|no|well|honestly|unfortunately|actually|anyway|by the way|of course|otherwise|meanwhile|btw|plus|luckily|sadly|then|hopefully)(?=\s+[a-z])(?!,)/gi,'$1$2,');
   s=s.replace(/([a-z]{2,}(?:\s+\S+){2,}?)\s+(but|so that)\s+/gi,(m,a,b)=>/,\s*$/.test(a)?m:a+', '+b+' ');
+  s=s.replace(/\b(so),(\s+(?:excited|happy|glad|much|many|good|great|sorry|grateful|thankful|sure|late|far|nice|cute|beautiful|lovely|proud|in love|ready)\b)/gi,'$1$2');
   s=s.replace(/\bi\b(?!\.e\.)/g,'I').replace(/\b(\w+)\b/g,w=>{const k=w.toLowerCase();return CONTR[k]&&!/[A-Z]{2,}/.test(w)?CONTR[k]:w});
+  // the small things people often get wrong in a hurry
+  const ING={work:'working',hear:'hearing',see:'seeing',meet:'meeting',collaborate:'collaborating',chat:'chatting',connect:'connecting',receive:'receiving',get:'getting',finish:'finishing',send:'sending',start:'starting',talk:'talking',create:'creating',shoot:'shooting',partner:'partnering'};
+  s=s.replace(/\b(looking forward to|look forward to|after|before)\s+(work|hear|see|meet|collaborate|chat|connect|receive|get|finish|send|start|talk|create|shoot|partner)\b/gi,(m,a,v)=>a+' '+ING[v.toLowerCase()]);
+  s=s.replace(/\bI send (you|it|them|the|my|this)\b(?=[^.!?\n]*\b(yesterday|last week|already|earlier|this morning|on (?:monday|tuesday|wednesday|thursday|friday)))/gi,'I sent $1');
+  s=s.replace(/\b(it)s (been|a|an|not|so|very|really|ok|okay|fine|perfect|great|done|ready)\b/gi,(m,i,w)=>i+"'s "+w);
+  s=s.replace(/\$?\b(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{2}))?\s*(?:usd|us dollars|dollars)\b/gi,(m,n,c)=>'$'+Number(n.replace(/,/g,'')).toLocaleString('en-US')+(c?'.'+c:''));
+  const PP={receive:'received',get:'gotten',see:'seen',hear:'heard',send:'sent',pay:'paid'};
+  s=s.replace(/\b(I|we) didn't (receive|get|see|hear|send|pay)\b(?=[^.!?\n]*\byet\b)/gi,(m,p,v)=>p+" haven't "+PP[v.toLowerCase()]);
+  s=s.replace(/([^.!?\n,]{12,}),\s+(could|can|would|will) you\b/gi,(m,a,v)=>a+'. '+v.charAt(0).toUpperCase()+v.slice(1).toLowerCase()+' you');
+  s=s.replace(/(\w) please\s*\?/gi,'$1, please?');
+  s=s.replace(/([^.!?\n,]{18,}),\s+(I(?:'m|'ll|'ve)?|we)\s+(can|will|would|could|am|have|need|want|think|love|hope|just|also|already|usually|charge|deliver|send)\b/g,(m,a,p,v)=>a+'. '+p.charAt(0).toUpperCase()+p.slice(1)+' '+v);
   s=s.replace(/(^|[.!?]\s+|\n)([a-zà-ÿ])/g,(m,a,b)=>a+b.toUpperCase());
   s=s.replace(/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|april|june|july|august|september|october|november|december|instagram|tiktok|youtube|pinterest)\b/gi,w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase());
   s=s.replace(/!{2,}/g,'!').replace(/\?{2,}/g,'?').replace(/\.{4,}/g,'...').replace(/,{2,}/g,',');
   s=s.replace(/(^|[.!?]\s+|\n)((?:can|could|would|will|do|does|did|are|is|was|were|should|shall|may|what|when|where|why|how|who|which)\b[^.!?\n]{3,}?)\.(?=\s|$)/gi,(m,a,q)=>a+q+'?');
   return s.replace(/\u0000(\d+)\u0001/g,(m,i)=>keep[Number(i)])}
-function endPunct(par){let p=par.trim();if(!p)return p;const lastS=(p.match(/[^.!?]*$/)||[''])[0].trim();if(lastS&&/^(can|could|would|will|do|does|did|are|is|was|were|should|what|when|where|why|how|who)\b/i.test(lastS)&&!/[.!?…)"”’\]]$/.test(p))return p+'?';if(/[.!?…:)"”’\]]$/.test(p)||/https?:\/\/\S+$/.test(p)||/\p{Extended_Pictographic}$/u.test(p))return p;return p+'.'}
+function endPunct(par){let p=par.trim().replace(/\s*[,;]+$/,'');if(!p)return p;const lastS=(p.match(/[^.!?]*$/)||[''])[0].trim();if(lastS&&/^(can|could|would|will|do|does|did|are|is|was|were|should|what|when|where|why|how|who)\b/i.test(lastS)&&!/[.!?…)"”’\]]$/.test(p))return p+'?';if(/[.!?…:)"”’\]]$/.test(p)||/https?:\/\/\S+$/.test(p)||/\p{Extended_Pictographic}$/u.test(p))return p;return p+'.'}
 function shapeEmail(raw){let text=String(raw||'').replace(/\r/g,'').trim();if(!text)return text;
   const sig=(S.settings&&S.settings.signature)||'';let tailSig='';if(sig&&text.endsWith(sig.trim())){tailSig=sig.trim();text=text.slice(0,-tailSig.length).trim()}
   let greet='';{const gm=text.match(/^\s*(good (?:morning|afternoon|evening)|hi|hello|hey|hiya|dear|greetings|hola|bonjour|ciao)\b[ \t]*/i);
@@ -6272,16 +6284,17 @@ function shapeEmail(raw){let text=String(raw||'').replace(/\r/g,'').trim();if(!t
       const w=rest.match(/^([A-Za-zÀ-ÿ'’.-]+)(?:[ \t]+([A-Za-zÀ-ÿ'’.-]+))?/);
       if(w&&!/^[,!.:\n]/.test(rest)){if(/^(team|there|all|everyone|guys)$/i.test(w[1])){g0+=' '+w[1];rest=rest.slice(w[1].length)}
         else if(!STOP.test(w[1])&&w[1].length<16){g0+=' '+w[1];rest=rest.slice(w[1].length);if(w[2]&&/^team$/i.test(w[2])){g0+=' '+w[2];rest=rest.replace(/^[ \t]+team/i,'')}else if(w[2]&&/^[A-ZÀ-Ý]/.test(w[2])&&!STOP.test(w[2])&&/^[ \t]+[A-Za-zÀ-ÿ'’.-]+[ \t]*[,!\n]/.test(rest)){g0+=' '+w[2];rest=rest.replace(/^[ \t]+[A-Za-zÀ-ÿ'’.-]+/,'')}}}
-      greet=g0.replace(/^good (Morning|Afternoon|Evening)/,(m,x)=>'good '+x.toLowerCase()).replace(/\b([a-zà-ÿ])/g,(m,c,o)=>o===0?c.toUpperCase():c).split(' ').map((x,i)=>i>0&&!/^(team|there|all|everyone|guys)$/i.test(x)?x.charAt(0).toUpperCase()+x.slice(1):x).join(' ');text=rest.replace(/^[ \t]*[,!.:-]?\s*/,'')}}
+      greet=g0.replace(/^good (Morning|Afternoon|Evening)/,(m,x)=>'good '+x.toLowerCase()).replace(/\b([a-zà-ÿ])/g,(m,c,o)=>o===0?c.toUpperCase():c).split(' ').map((x,i)=>i>0&&!/^(team|there|all|everyone|guys)$/i.test(x)?x.charAt(0).toUpperCase()+x.slice(1):x).join(' ');text=rest.replace(/^[ \t]*[,!.:-]*\s*/,'')}}
   let close='',name='';const meFirst=(((typeof invMe==='function'&&invMe().sign)||myName()||'').split(' ')[0]||'').toLowerCase();let m=text.match(SIGN_RE);if(m&&m[2]&&!/^[A-ZÀ-Ý]/.test(m[2])&&m[2].split(' ')[0].toLowerCase()!==meFirst)m=null;if(m&&text.length-m.index<60){close=m[1];name=(m[2]||'').trim().split(' ').map(x=>x.charAt(0).toUpperCase()+x.slice(1)).join(' ');text=text.slice(0,m.index+(/^[\s.!,]/.test(m[0])?1:0)).trim()}
   if(!name&&close){const me=(typeof invMe==='function'&&invMe().sign)||myName()||'';name=(me.split(' ')[0])||''}
+  if(!close&&meFirst){const mm=text.match(/([.!?])\s+([A-Za-zÀ-ÿ'’-]+)\s*[.!]?\s*$/);if(mm&&mm[2].toLowerCase()===meFirst){name=mm[2].charAt(0).toUpperCase()+mm[2].slice(1);text=text.slice(0,mm.index+1).trim()}}
   let paras=text.split(/\n\s*\n/).map(p=>p.replace(/\n+/g,' ').trim()).filter(Boolean);
   paras=paras.flatMap(p=>{const ss=p.match(/[^.!?]+(?:[.!?]+|$)\s*/g)||[p];if(ss.length<=3)return [p];const out=[];for(let i=0;i<ss.length;i+=2)out.push(ss.slice(i,i+2).join('').trim());return out});
   paras=paras.map(p=>endPunct(cleanSentences(p)));
   const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1):s;
   const parts=[];if(greet)parts.push(cap(cleanSentences(greet).replace(/[.!]$/,'')).replace(/^Good (Morning|Afternoon|Evening)/i,(m,x)=>'Good '+x.toLowerCase())+',');parts.push(...paras);
-  if(close){const cl=close.toLowerCase();parts.push((/^(xo|xoxo)$/.test(cl)?cl:cap(cl))+','+(name?'\n'+name:''))}
-  let out=parts.join('\n\n');if(tailSig)out+='\n\n'+tailSig;return out}
+  if(close){const cl=close.toLowerCase();parts.push((/^(xo|xoxo)$/.test(cl)?cl:cap(cl))+','+(name?'\n'+name:''))}else if(name)parts.push(name);
+  let out=parts.join('\n\n');if(tailSig&&!(close&&tailSig.split('\n').filter(x=>x.trim()).length<=2))out+='\n\n'+tailSig;return out}
 async function polishEmail(ta,box){const before=ta.value;if(!before.trim()){toast('Write something first');return}
   const b=document.getElementById('ck-btn');if(b){b.disabled=true;b.lastChild.textContent='Polishing…'}
   let v=before;
