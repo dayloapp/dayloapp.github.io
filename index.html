@@ -2663,7 +2663,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610161238';
+const BUILD_ID='202610161506';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -2908,9 +2908,9 @@ function draftReply(p,msg){
   const body=hi+'\n\n'+(text||'')+'\n\n'+sign;
   const subject=p.subject?('Re: '+p.subject.replace(/^re:\s*/i,'')):'';
   const ta=h('textarea',{class:'input vo-body',rows:'6'},body);ta.value=body;
-  const send=()=>{closeVoice();openComposer({to:p.email,subject,body:ta.value});if(CP){CP.gmail=p.threadId?{threadId:p.threadId}:null;CP.step='review';drawComposer();setTimeout(()=>askConfirm(),60)}};
+  const send=()=>{closeVoice();openComposer({to:p.email,subject,body:ta.value});if(CP){CP.gmail=p.threadId?{threadId:p.threadId}:null;CP.step='review';drawComposer()}};
   resultView('Reply to '+(p.name||p.email),'',[h('div',{class:'small muted',style:'margin-bottom:6px'},'To '+p.email+(subject?' · '+subject:'')),ta],
-    [h('button',{class:'btn primary',onclick:send},icon('send'),'Send'),h('button',{class:'btn',onclick:()=>listenView()},'Redo')]);
+    [h('button',{class:'btn primary',onclick:send},'Preview'),h('button',{class:'btn',onclick:()=>listenView()},'Redo')]);
   speak('Here’s your reply to '+(p.name||'them')+'. '+(text||'')+' Tap send when it looks right.');
 }
 
@@ -6582,6 +6582,21 @@ html[data-look="night"] .lk-editorial .lk-prev b,html[data-look="night"] .lk-sha
 html[data-look="night"] .dm-contacts,html[data-look="night"] .dm-contacts summary{background:#1E1C1B!important;color:#FAFAF9!important;border-color:#2E2B29!important}
 html[data-look="night"] .dm-card{background:#2A2725!important;color:#FAFAF9!important}html[data-look="night"] .dm-card *{color:inherit}
 `}));
+
+/* ---------- sending is two steps: write → preview → Send. No extra "are you sure?" box ---------- */
+askConfirm=function(){
+  if(!CP||reviewWarnings().some(x=>x[0]==='bad'))return;
+  const b=document.getElementById('cp-send');
+  if(b){if(b.dataset.busy)return;b.dataset.busy='1';b.disabled=true;const t=[...b.childNodes].reverse().find(n=>n.nodeType===3);if(t)t.textContent='Sending…'}
+  const done=()=>{const b2=document.getElementById('cp-send');if(!b2)return;delete b2.dataset.busy;b2.disabled=false;const t=[...b2.childNodes].reverse().find(n=>n.nodeType===3);if(t)t.textContent='Send'};
+  Promise.resolve().then(()=>sendViaGmail()).catch(e=>console.error(e)).finally(done);
+};
+/* the preview says it plainly, and shows what's attached */
+drawComposer=(function(prev){return function(){prev();try{if(!CP||CP.step!=='review')return;
+  const p=document.querySelector('#overlay .sheet .drawer-body .form > p');if(p&&/Yes, send/.test(p.textContent))p.textContent='This is exactly what they’ll get. Nothing goes out until you tap Send.';
+  const a=CP.attach||[];const rv=document.querySelector('#overlay .sheet .review');
+  if(a.length&&rv&&!rv.querySelector('.rv-att')){const body=rv.querySelector('.bodyview');const row=h('div',{class:'r rv-att'},h('span',null,'Attached'),h('span',null,a.map(x=>x.name).join(', ')));body?body.before(row):rv.append(row)}
+}catch(e){console.error(e)}}})(drawComposer);
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
 const ACCOUNTS_ON=true;
