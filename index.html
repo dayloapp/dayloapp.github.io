@@ -2663,7 +2663,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610152037';
+const BUILD_ID='202610161238';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -5997,7 +5997,7 @@ function pageMoney(){const t=ymd();const yr=String(new Date().getFullYear());
       h('div',{class:'mn-acts'},h('button',{class:'btn ghost',onclick:()=>openContractEditor(null)},icon('pen'),'New contract'),h('button',{class:'btn primary',onclick:()=>openInvoiceEditor(null)},icon('plus'),'New invoice'))),
     h('div',{class:'mn-stats'},stat(mnSum(waiting),'Waiting'),stat(mnSum(late),'Late'),stat(mnSum(paid),'Paid in '+yr)),
     wide?h('div',{class:'mn-grid'},h('div',{class:'mn-col'},invBlock,ctBlock),h('div',{class:'mn-col'},brBlock)):h('div',null,seg,MN.tab==='contracts'?ctBlock:MN.tab==='brands'?brBlock:invBlock),
-    h('button',{class:'mn-deals',onclick:()=>{S.campStages=null;go('campaigns')}},'See all your deals',icon('ext')))}
+    h('button',{class:'mn-deals',onclick:()=>{S.campStages=null;go('campaigns')}},'See all your deals →'))}
 renderMain=(function(prev){return function(){if(page==='money'){const st=$('#main').scrollTop;$('#main').replaceChildren(pageMoney());$('#main').scrollTop=st;try{dkBody()}catch{}return}return prev()}})(renderMain);
 go=(function(prev){return function(p){return prev(p==='payments'||p==='finance'||p==='invoices'?'money':p)}})(go);
 /* ---------- brand card ---------- */
@@ -6522,6 +6522,65 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .rp-txt{font-size:13.5px;line-height:1.5;color:#5F5B57;white-space:pre-line;max-height:4.6em;overflow:hidden;margin-top:4px}.rp-card.open .rp-txt{max-height:none}
 .rp-more{align-self:flex-start;border:0;background:none;padding:4px 0 0;font:600 12.5px var(--f-body);color:#222120;cursor:pointer}
 html[data-look="night"] .rp-card{background:#1E1C1B;border-color:#2E2B29}html[data-look="night"] .rp-n,html[data-look="night"] .rp-s,html[data-look="night"] .rp-more{color:#FAFAF9}html[data-look="night"] .rp-txt{color:#B9AC9F}
+`}));
+
+/* ===================== Ready for friends: feedback, a clean menu, tidy Deals, small fixes ===================== */
+async function sendFeedback(msg){const body=JSON.stringify({message:msg.slice(0,4000),email:(CL&&CL.sess&&CL.sess.email)||'',name:myName()||'',page:page||'',device:(navigator.userAgent||'').slice(0,180)+' · '+innerWidth+'×'+innerHeight});
+  const hd={'Content-Type':'application/json',Prefer:'return=minimal'};
+  const r=CL&&CL.sess?await sbFetch('/rest/v1/feedback',{method:'POST',headers:hd,body}):await fetch(SB_URL+'/rest/v1/feedback',{method:'POST',headers:{...hd,apikey:SB_KEY},body});
+  if(!r.ok)throw new Error('fb '+r.status)}
+function openFeedback(){const ta=h('textarea',{class:'input',rows:'6',placeholder:'What felt confusing, slow or broken? What did you love? Anything helps.'});
+  const where=h('p',{class:'fb-where'},'Sent with the page you were on ('+(({today:'Today',inbox:'Email',schedule:'Calendar',notes:'Notes',money:'Money',campaigns:'Deals',settings:'Settings',followups:'Follow-ups',packages:'Packages'})[page]||page)+') and your screen size. No emails or private data.');
+  const send=h('button',{class:'btn primary',onclick:async()=>{const v=ta.value.trim();if(!v){ta.focus();return}send.disabled=true;send.textContent='Sending…';
+    try{await sendFeedback(v);closeDrawer();toast('Sent to Andy. Thank you, you’re a real one.')}catch(e){send.disabled=false;send.textContent='Send';toast('Couldn’t send. Check your connection and try again.')}}},'Send');
+  openDrawer('Send feedback',h('div',{class:'form fb'},h('h2',{class:'fb-h'},'Tell Andy ',h('em',null,'everything.')),ta,where),[send,h('button',{class:'btn ghost',onclick:closeDrawer},'Cancel')]);setTimeout(()=>ta.focus(),80)}
+const FB={owner:null};
+async function fbOwner(){if(FB.owner!==null||!(CL&&CL.sess))return FB.owner;try{const r=await sbFetch('/rest/v1/rpc/is_feedback_owner',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});FB.owner=r.ok&&(await r.json())===true}catch{FB.owner=false}return FB.owner}
+async function openFeedbackInbox(){const box=h('div',{class:'form'},h('p',{class:'muted'},'Loading…'));openDrawer('Tester feedback',box,[h('button',{class:'btn',onclick:closeDrawer},'Close')]);
+  try{const r=await sbFetch('/rest/v1/feedback?select=*&order=created_at.desc&limit=200');const rows=await r.json();
+    box.replaceChildren(rows.length?h('div',{class:'fb-list'},...rows.map(x=>h('div',{class:'fb-it'},h('div',{class:'fb-m'},h('b',null,x.name||x.email||'Someone'),h('span',null,new Date(x.created_at).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' · '+(x.page||''))),h('p',null,x.message)))):h('p',{class:'muted'},'No feedback yet. Send the link to a friend.'))}catch{box.replaceChildren(h('p',{class:'muted'},'Couldn’t load feedback right now.'))}}
+moreMenu=function(){
+  const pk=(S.settings.packages||[]).filter(p=>p.status!=='Delivered').length;const fu=(typeof radarAll==='function'?radarAll():[]).length;
+  const open=(S.campaigns||[]).filter(c=>typeof dealBucket==='function'&&['talks','deliver'].includes(dealBucket(c))).length;
+  const items=[['campaigns','Deals',open?open+' open':null,()=>{S.campStages=null;go('campaigns')}],['inbox','Packages',pk?pk+' on the way':null,()=>go('packages')],['send','Follow-ups',fu?String(fu):null,()=>go('followups')],['settings','Settings',null,()=>go('settings')],['spark','Send feedback','Tell Andy what to improve',openFeedback]];
+  if(FB.owner)items.push(['inbox','Tester feedback','What friends sent',openFeedbackInbox]);
+  if(S.settings.demo&&typeof removeExamples==='function')items.push(['x','Remove the example data',null,()=>{removeExamples()}]);
+  openSheet('Menu',items)};
+setTimeout(fbOwner,5000);
+/* Deals: just deals (money lives in Money) */
+pageCampaigns=(function(prev){return function(){const el=prev();try{el.querySelectorAll('.dm-pay').forEach(x=>x.remove());
+  el.querySelectorAll('h1').forEach(t=>{if(/^Deals\s*&\s*money$/.test(t.textContent.trim())){t.replaceChildren('Deals')}});
+  if(!el.querySelector('.dl-money')){el.append(h('button',{class:'mn-deals dl-money',onclick:()=>go('money')},'Invoices, contracts and brands are in Money →'))}}catch(e){console.error(e)}return el}})(pageCampaigns);
+(function(){const fix=()=>document.querySelectorAll('h1, .nav button').forEach(b=>{if(b.childNodes.length&&/^Deals\s*&\s*money$/.test(b.textContent.trim())&&b.children.length<=1){const em=b.querySelector('em');if(em&&/money/.test(em.textContent)){em.remove();b.childNodes.forEach(n=>{if(n.nodeType===3)n.textContent=n.textContent.replace(/\s*$/,'')})}else if(!b.children.length)b.textContent='Deals'}});new MutationObserver(fix).observe(document.documentElement,{childList:true,subtree:true})})();
+/* signature: use your name, never "[Your name]" */
+setTimeout(()=>{try{const nm=myName();if(nm&&/\[Your name\]/.test(S.settings.signature||''))saveSettings({signature:S.settings.signature.replace(/\[Your name\]/g,nm.split(' ')[0])})}catch{}},2500);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.fb-h{font:400 30px/1.1 Lora,Georgia,serif;margin:0 0 4px}.fb-h em{color:#6B625B}.fb-where{margin:0;font-size:12.5px;color:#857A70}
+.fb-list{display:flex;flex-direction:column;gap:10px}.fb-it{background:#F4F0EA;border-radius:16px;padding:12px 14px}.fb-m{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:#857A70}.fb-m b{color:#222120;font-weight:600}.fb-it p{margin:6px 0 0;font-size:14.5px;line-height:1.5;white-space:pre-wrap}
+.dl-money{margin-top:18px}
+html[data-look="night"] .fb-it{background:#1E1C1B;color:#FAFAF9}
+`}));
+/* Night: every control readable */
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+html[data-look="night"]:root input.input,html[data-look="night"]:root select.input,html[data-look="night"]:root textarea.input{background:#1E1C1B!important;color:#FAFAF9!important;border-color:#3A3633!important}
+html[data-look="night"] input.input::placeholder,html[data-look="night"] textarea.input::placeholder{color:#8A827A!important}
+html[data-look="night"] .gpill,html[data-look="night"] .mn-seg,html[data-look="night"] .iv-st{background:rgba(30,28,27,.9)!important;border-color:#2E2B29!important}
+html[data-look="night"] .gpill button.on,html[data-look="night"] .mn-seg button.on,html[data-look="night"] .iv-st button.on{background:#FAFAF9!important;color:#222120!important}
+html[data-look="night"] .mn-seg button,html[data-look="night"] .gpill button{color:#B9AC9F}
+html[data-look="night"] .ct-chip.on{background:#FAFAF9!important;color:#222120!important}
+html[data-look="night"] .mn-av{background:#2E2B29;color:#FAFAF9}
+html[data-look="night"] .dk-ev{background:#2E2B29!important;color:#FAFAF9!important}
+html[data-look="night"] .nt-tool,html[data-look="night"] .nt-tools button{background:#2A2725!important;color:#FAFAF9!important;border-color:#3A3633!important}
+html[data-look="night"] .cp-steps,html[data-look="night"] .cp-steps *{color:#B9AC9F!important}html[data-look="night"] .cp-steps b,html[data-look="night"] .cp-steps .on{color:#FAFAF9!important}
+html[data-look="night"] .drawer-foot .btn.ghost{background:transparent!important;color:#FAFAF9!important;border-color:#3A3633!important}
+html[data-look="night"] .dc b,html[data-look="night"] .dc .n{color:#FAFAF9}
+html[data-look="night"] .mm-d.out{background:#1A1817!important}html[data-look="night"] .mm-d.out b{color:#6F6C67!important}
+html[data-look="night"] .nt-fmt,html[data-look="night"] .nt-fmt button{background:#2A2725!important;color:#FAFAF9!important;border-color:#3A3633!important}html[data-look="night"] .nt-fmt *{color:#FAFAF9!important}
+html[data-look="night"] .small.muted span,html[data-look="night"] .small.muted{color:#B9AC9F!important}
+html[data-look="night"]:root .drawer-foot .btn.ghost{background:#1E1C1B!important;color:#FAFAF9!important}
+html[data-look="night"] .lk-editorial .lk-prev b,html[data-look="night"] .lk-sharp .lk-prev b{color:#222120!important}
+html[data-look="night"] .dm-contacts,html[data-look="night"] .dm-contacts summary{background:#1E1C1B!important;color:#FAFAF9!important;border-color:#2E2B29!important}
+html[data-look="night"] .dm-card{background:#2A2725!important;color:#FAFAF9!important}html[data-look="night"] .dm-card *{color:inherit}
 `}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */

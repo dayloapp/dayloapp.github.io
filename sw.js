@@ -1,5 +1,5 @@
 // Daylo service worker: makes the app open fast and work offline.
-const CACHE='daylo-v86';
+const CACHE='daylo-v87';
 const SHELL=['./','./index.html','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL.map(u=>new Request(u,{cache:'reload'})))).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
@@ -11,9 +11,9 @@ self.addEventListener('fetch',e=>{
   if(url.searchParams.has('fresh'))return; // update checks always go to the network
   // Network first for the page itself (so updates show up), cache first for everything else.
   if(req.mode==='navigate'){
-    // Always ask the server for the newest page (skip the phone's HTTP cache). If the network is slow, show the saved copy after 6 s.
+    // Always ask the server for the newest page (skip the phone's HTTP cache). If the network is slow, show the saved copy after 1.2 s (the new version is saved for next time).
     const net=fetch(req.url,{cache:'no-store',credentials:'same-origin'}).then(r=>{if(r.ok){const cp=r.clone();caches.open(CACHE).then(c=>c.put('./index.html',cp))}return r});
-    const slow=new Promise(res=>setTimeout(()=>caches.match('./index.html').then(h=>h&&res(h)),6000));
+    const slow=new Promise(res=>setTimeout(()=>caches.match('./index.html').then(h=>h&&res(h)),1200));
     e.respondWith(Promise.race([net,slow]).catch(()=>caches.match('./index.html')));return}
   e.respondWith(caches.match(req).then(hit=>hit||fetch(req).then(r=>{if(r.ok||r.type==='opaque'){const cp=r.clone();caches.open(CACHE).then(c=>c.put(req,cp))}return r})));
 });
