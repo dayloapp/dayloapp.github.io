@@ -2663,7 +2663,7 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 `}));
 
 /* ---------- updates: pull down to refresh, auto-update when a new version is out ---------- */
-const BUILD_ID='202610151914';
+const BUILD_ID='202610152030';
 function buildLabel(id){const m=String(id).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/);if(!m)return id;const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 async function newVersion(){try{const t=await fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'');const m=t.match(/BUILD_ID='(\d{12})'/);return m&&m[1]!==BUILD_ID?m[1]:null}catch{return null}}
 async function refreshApp(){
@@ -6440,6 +6440,51 @@ document.head.append(Object.assign(document.createElement('style'),{textContent:
 .trk-sw input{position:absolute;opacity:0;pointer-events:none}.trk-tg{width:44px;height:26px;border-radius:13px;background:#DCD7D0;position:relative;flex:none;transition:background .2s}.trk-tg:after{content:'';position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#FAFAF9;transition:left .2s}
 .trk-sw input:checked+.trk-tg{background:#222120}.trk-sw input:checked+.trk-tg:after{left:21px}
 html[data-look="night"] .seen-b,html[data-look="night"] .trk-sw{background:#1E1C1B;color:#FAFAF9}
+`}));
+
+/* ===================== Today shows your to-dos (anything you add appears here) ===================== */
+function todoItems(){const t=ymd();const wk=addDays(t,6);
+  return (S.tasks||[]).filter(x=>!x.done).map(x=>{const d=x.due||'';const grp=!d?2:d<t?0:d===t?1:3;
+    const when=!d?'Anytime':d<t?'Late':d===t?(x.time?fmtTime(x.time):'Today'):d===addDays(t,1)?'Tomorrow':d<=wk?parseYmd(d).toLocaleDateString(undefined,{weekday:'short'}):parseYmd(d).toLocaleDateString(undefined,{month:'short',day:'numeric'});
+    return {x,k:grp+(d||'9999')+(x.time||'99')+String(9e15-(x.createdAt||0)).padStart(16,'0'),when}}).sort((a,b)=>a.k.localeCompare(b.k))}
+let TD_UNDO=null;
+function tdUndoBtn(fn){const t=document.getElementById('toast');if(!t)return;t.querySelector('.toast-undo')?.remove();const u=h('button',{class:'toast-undo',onclick:()=>{u.remove();t.hidden=true;fn()}},'Undo');t.append(u);try{clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,7000)}catch{}}
+celebrate=(function(prev){return function(all){prev(all);if(TD_UNDO&&!all){const f=TD_UNDO;TD_UNDO=null;tdUndoBtn(f)}}})(celebrate);
+function todoDone(task,btn){btn&&btn.classList.add('on');setTimeout(async()=>{const undo=async()=>{const cur=S.tasks.find(y=>y.id===task.id);if(cur)await save('tasks',{...cur,done:false,doneAt:null});renderMain()};TD_UNDO=undo;
+  await save('tasks',{...task,done:true,doneAt:Date.now()});renderMain();setTimeout(()=>{if(TD_UNDO===undo){TD_UNDO=null;toast('Done. One less thing.');tdUndoBtn(undo)}},900)},260)}
+function todoRow(it,cls){return h('div',{class:'td-row'+(cls?' '+cls:'')},h('button',{class:'nx-ck','aria-label':'Mark done',onclick:e=>todoDone(it.x,e.currentTarget)}),
+  h('button',{class:'td-tx',onclick:()=>openTask(it.x)},h('span',null,it.x.title||'Untitled')),h('span',{class:'td-w'+(it.when==='Late'?' late':'')},it.when))}
+const TD_FUN=['Today’s list: cleared. Here’s what’s next.','You finished today. Showing off now, are we?','Nothing left for today. Tomorrow-you says thanks.','All done for today. The rest can wait its turn.','Today: handled. Here’s a peek at what’s coming.'];
+const TD_ZERO=['Nothing to do. Suspiciously calm.','Your list is empty. Go make something pretty.','Zero tasks. This is what peace looks like.'];
+const tdPick=a=>a[(new Date().getDate()+(S.cheerN||0))%a.length];
+pageToday=(function(prev){return function(){const el=prev();try{
+  const items=todoItems();const t0=ymd();const todayLeft=items.filter(it=>it.when==='Late'||it.x.due===t0).length;
+  if(!items.length){if(window.innerWidth<1000&&(S.tasks||[]).length){const a=el.querySelector('.nx')||el.querySelector('.cv');if(a)a.after(h('section',{class:'td-box td-zero'},h('p',{class:'td-fun'},tdPick(TD_ZERO))))}return el}
+  if(window.innerWidth<1000){
+    const nx=el.querySelector('.nx');const shownTitle=nx&&nx.querySelector('.nx-tx b')?nx.querySelector('.nx-tx b').textContent:null;
+    const rest=items.filter(it=>!(shownTitle&&it.x.title===shownTitle)).slice(0,4);if(!rest.length)return el;
+    const more=items.length-(shownTitle&&items.some(i=>i.x.title===shownTitle)?1:0)-rest.length;
+    const box=h('section',{class:'td-box'},!todayLeft?h('p',{class:'td-fun'},tdPick(TD_FUN)):null,h('div',{class:'td-h'},h('span',null,todayLeft?'To do':'Coming up'),more>0?h('button',{class:'td-all',onclick:()=>{S.dayPick=ymd();S.schedView='day';go('schedule')}},'+'+more+' more'):null),...rest.map(it=>todoRow(it)));
+    const anchor=nx||el.querySelector('.cv');if(anchor)anchor.after(box)}
+  else{const box=[...el.querySelectorAll('.dk-box')].find(b=>/^Today/.test((b.querySelector('.dm-h span')||{}).textContent||''));if(!box)return el;
+    const t=ymd();const nxT=(el.querySelector('.nx .nx-tx b')||{}).textContent||null;
+    const evs=calEventsOn(t).map(e=>h('button',{class:'dk-it',onclick:()=>openEvent(e)},h('em',null,evTime(e)),h('span',null,e.title)));
+    const now=items.filter(it=>(it.when==='Late'||it.x.due===t)&&it.x.title!==nxT);
+    const later=items.filter(it=>!(it.when==='Late'||it.x.due===t)&&it.x.title!==nxT).slice(0,5);
+    const head=box.querySelector('.dm-h');box.replaceChildren(head,...(!todayLeft&&!evs.length&&later.length?[h('p',{class:'td-fun'},tdPick(TD_FUN))]:[]),...evs,...now.map(it=>todoRow(it,'dk')),...(later.length?[h('div',{class:'td-sub'},'Coming up'),...later.map(it=>todoRow(it,'dk'))]:[]),...(!evs.length&&!now.length&&!later.length?[h('p',{class:'sc-empty'},'Nothing planned. Suspiciously calm.')]:[]))}
+}catch(e){console.error(e)}return el}})(pageToday);
+document.head.append(Object.assign(document.createElement('style'),{textContent:`
+.td-box{margin-top:12px;background:rgba(250,250,249,.6);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.8);border-radius:24px;padding:12px 20px 6px;box-shadow:0 8px 24px rgba(60,50,40,.05)}
+.td-h{display:flex;justify-content:space-between;align-items:center;font:600 9.5px var(--f-body);letter-spacing:.18em;text-transform:uppercase;color:#857A70;padding:4px 0 6px}
+.td-all{border:0;background:none;font:600 12px var(--f-body);letter-spacing:0;text-transform:none;color:#222120;cursor:pointer;padding:4px 0}
+.td-row{display:flex;align-items:center;gap:14px;padding:11px 0;border-top:1px solid rgba(220,215,208,.6)}.td-h+.td-row{border-top:0}
+.td-row .nx-ck{width:22px;height:22px}
+.td-tx{flex:1;min-width:0;border:0;background:none;padding:0;text-align:left;cursor:pointer;color:#141312;font:500 15.5px var(--f-body)}.td-tx span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.td-w{font:400 15px Lora,Georgia,serif;color:#6F6C67;flex:none}.td-w.late{color:#222120;font-weight:500}
+.td-fun{margin:6px 0 4px;font:italic 400 17px/1.35 Lora,Georgia,serif;color:#222120}.td-zero{padding:14px 20px}.td-zero .td-fun{margin:0}
+.td-sub{font:600 9.5px var(--f-body);letter-spacing:.18em;text-transform:uppercase;color:#857A70;margin:12px 0 2px}
+.td-row.dk{padding:9px 0}
+html[data-look="night"] .td-box{background:rgba(30,28,27,.7);border-color:#2E2B29}html[data-look="night"] .td-tx{color:#FAFAF9}html[data-look="night"] .td-w.late{color:#FAFAF9}
 `}));
 
 /* ---------- accounts: each person signs in with their email and gets their own space ---------- */
