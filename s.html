@@ -73,7 +73,7 @@ const fmtDay=(d,t)=>{if(!d)return '';const x=new Date(d+'T'+(t||'12:00'));let s=
 const shortDay=d=>d?new Date(d+'T12:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
 function mail(D,subj,body){return 'mailto:'+String(D.by.email||'').replace(/[^a-z0-9@._+-]/gi,'')+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body+'\n\n'+location.href)}
 function postView(D,p,i,n){const ims=p.im||[];let cur=0;
-  const car=$('div',{class:'car'},ims.map(u=>$('img',{src:u,alt:'',loading:'lazy'})));const cnt=ims.length>1?$('span',{class:'cnt'},'1/'+ims.length):null;
+  const car=$('div',{class:'car'},ims.map(u=>$('img',{src:u,alt:''})));const cnt=ims.length>1?$('span',{class:'cnt'},'1/'+ims.length):null;
   const dots=ims.length>1?$('div',{class:'dots'},ims.map((_,j)=>$('i',{class:j?'':'on'}))):null;
   const go=k=>{car.scrollTo({left:car.clientWidth*k,behavior:'smooth'})};
   car.addEventListener('scroll',()=>{const k=Math.round(car.scrollLeft/Math.max(1,car.clientWidth));if(k!==cur){cur=k;if(cnt)cnt.textContent=(k+1)+'/'+ims.length;if(dots)[...dots.children].forEach((e,j)=>e.className=j===k?'on':'')}},{passive:true});
@@ -94,7 +94,7 @@ function render(D){const app=document.getElementById('app');app.className='wrap'
   addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal').forEach(m=>m.remove())});
   app.replaceChildren(head,
     $('div',{class:'prof'},$('span',{class:'av'},(D.by.handle||'d')[0].toUpperCase()),$('div',null,$('b',null,D.by.handle||D.by.name),$('small',null,(D.kind==='feed'?'Feed preview':'Posts to approve')+' · '+P.length+' post'+(P.length===1?'':'s')))),
-    $('div',{class:'grid'},P.map((p,i)=>{const b=$('button',{class:'cell','aria-label':p.t||'Post',onclick:()=>open(i)},p.im&&p.im[0]?$('img',{src:p.im[0],alt:'',loading:'lazy'}):null,p.d?$('span',{class:'date'},shortDay(p.d)):null);if((p.im||[]).length>1)b.insertAdjacentHTML('beforeend',SVG.stack);return b})),
+    $('div',{class:'grid'},P.map((p,i)=>{const b=$('button',{class:'cell','aria-label':p.t||'Post',onclick:()=>open(i)},p.im&&p.im[0]?$('img',{src:p.im[0],alt:''}):null,p.d?$('span',{class:'date'},shortDay(p.d)):null);if((p.im||[]).length>1)b.insertAdjacentHTML('beforeend',SVG.stack);return b})),
     $('div',{class:'foot'},$('a',{class:'btn dk',style:'flex:1',href:mail(D,'Approved: all '+P.length+' posts','All approved. Looks great!'),html:SVG.check+'Approve all'}),$('a',{class:'btn',href:mail(D,'About the preview','Hi '+(D.by.name||'')+',\n\n'),html:SVG.mail+'Reply'})),
     made())}
 function gone(){const app=document.getElementById('app');app.className='';app.replaceChildren($('div',{class:'empty'},$('h1',null,'This preview isn’t here'),$('p',null,'The link may be old or mistyped. Ask the person who sent it for a new one.'),made()))}
