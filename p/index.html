@@ -92,7 +92,7 @@ function postView(D,p,i,n){const ims=p.im||[];let cur=0;
       $('div',{class:'acts'},$('a',{class:'btn dk',href:mail(D,'Approved: '+title,'Approved. Looks great!'),html:SVG.check+'Approve'}),$('a',{class:'btn',href:mail(D,'Change: '+title,'Could we change:\n- ')},'Ask for a change'))))}
 function made(){return $('div',{class:'made'},'Made with',$('b',null,'Daylo'),'· plan, share and get approved ·',$('a',{href:'../'},'Make your own'))}
 function render(D){const app=document.getElementById('app');app.className='wrap';const P=D.posts||[];
-  document.title=(P.length===1?(P[0].t||'Post'):(D.by.handle||'Preview'))+' · Daylo';
+  document.title='Daylo preview';
   const head=$('header',null,$('a',{class:'logo',href:'../'},'Daylo'),$('span',{style:'display:flex;gap:8px;align-items:center'},D.brand?$('span',{class:'pill'},'For '+D.brand):null,$('a',{class:'mk',href:'../'},'Make your own')));
   if(D.kind==='post'||P.length===1){app.replaceChildren(head,postView(D,P[0],0,1),made());return}
   const open=i=>{const m=$('div',{class:'modal',onclick:e=>{if(e.target===m)m.remove()}},$('div',{class:'sheet'},$('div',{class:'x'},$('button',{'aria-label':'Close',onclick:()=>m.remove()},'×')),postView(D,P[i],i,P.length)));document.body.append(m)};
