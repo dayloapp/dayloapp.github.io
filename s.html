@@ -78,10 +78,10 @@ function postView(D,p,i,n){const ims=p.im||[];let cur=0;
   const go=k=>{car.scrollTo({left:car.clientWidth*k,behavior:'smooth'})};
   car.addEventListener('scroll',()=>{const k=Math.round(car.scrollLeft/Math.max(1,car.clientWidth));if(k!==cur){cur=k;if(cnt)cnt.textContent=(k+1)+'/'+ims.length;if(dots)[...dots.children].forEach((e,j)=>e.className=j===k?'on':'')}},{passive:true});
   const who=$('div',{class:'igh'},$('span',{class:'av'},(D.by.handle||'d')[0].toUpperCase()),$('span',null,D.by.handle||D.by.name,D.collab?$('span',null,' and '):null,D.collab||null));
-  const title=p.t||'Post';
+  const title=p.t||(p.c?p.c.split(/[\n.!?]/)[0].slice(0,40):'')||'the post';
   return $('div',{class:'post'},who,
     $('div',{class:'ph'},car,cnt,ims.length>1?$('button',{class:'nav l','aria-label':'Previous',onclick:()=>go(Math.max(0,cur-1))},'‹'):null,ims.length>1?$('button',{class:'nav r','aria-label':'Next',onclick:()=>go(Math.min(ims.length-1,cur+1))},'›'):null,dots),
-    $('div',{class:'side'},$('p',{class:'kind'},(n>1?'Post '+(i+1)+' of '+n+' · ':'')+(ims.length>1?'Carousel':(p.k||'Post'))),$('h1',{class:'ttl'},title),
+    $('div',{class:'side'},$('p',{class:'kind'},(n>1?'Post '+(i+1)+' of '+n+' · ':'')+(ims.length>1?'Carousel':(p.k||'Post'))),p.t?$('h1',{class:'ttl'},p.t):null,
       p.d?$('p',{class:'when'},'Goes live '+fmtDay(p.d,p.tm)):null,
       p.c?$('p',{class:'cap'},$('b',null,D.by.handle||''),' ',p.c):null,
       $('div',{class:'acts'},$('a',{class:'btn dk',href:mail(D,'Approved: '+title,'Approved. Looks great!'),html:SVG.check+'Approve'}),$('a',{class:'btn',href:mail(D,'Change: '+title,'Could we change:\n- ')},'Ask for a change'))))}
