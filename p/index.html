@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Daylo preview</title><meta name="robots" content="noindex">
+<meta property="og:type" content="website"><meta property="og:site_name" content="Daylo">
+<meta property="og:title" content="Daylo preview"><meta property="og:description" content="See the post before it goes live. Approve it or ask for a change.">
+<meta property="og:image" content="https://dayloapp.github.io/og-preview.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Daylo preview"><meta name="twitter:image" content="https://dayloapp.github.io/og-preview.png">
+<link rel="icon" href="../icon-192.png">
+<meta name="theme-color" content="#FFFFFF">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;1,6..72,400&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#222120;--mut:#76716B;--line:#ECE8E2;--bg:#FFFFFF;--soft:#F6F4F1;--f-d:'Newsreader',Georgia,serif;--f-b:'Hanken Grotesk',system-ui,sans-serif}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-b);-webkit-font-smoothing:antialiased}
+button,a{font:inherit;color:inherit}
+.wrap{max-width:980px;margin:0 auto;padding:0 0 40px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(env(safe-area-inset-top,0px) + 18px) 18px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);z-index:5}
+.logo{font:400 24px var(--f-d);letter-spacing:-.01em;text-decoration:none}
+.pill{font:600 11.5px var(--f-b);padding:5px 10px;border-radius:999px;background:var(--soft);color:#5c564f;white-space:nowrap}
+.mk{border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-weight:600;font-size:13px;text-decoration:none;white-space:nowrap}
+.prof{display:flex;align-items:center;gap:14px;padding:18px}
+.av{width:58px;height:58px;border-radius:50%;background:var(--soft);display:flex;align-items:center;justify-content:center;font:400 24px var(--f-d);flex:none}
+.prof b{font-size:16px}.prof small{display:block;color:var(--mut);font-size:13px;margin-top:2px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
+.cell{position:relative;aspect-ratio:4/5;background:var(--soft);border:0;padding:0;cursor:pointer;overflow:hidden}
+.cell img{width:100%;height:100%;object-fit:cover;display:block}
+.stack{position:absolute;right:7px;top:7px;width:17px;height:17px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.45))}
+.date{position:absolute;left:7px;bottom:7px;background:rgba(255,255,255,.92);border-radius:999px;font:600 11px var(--f-b);padding:2px 8px}
+.post{display:grid;grid-template-columns:1fr;gap:0}
+.ph{position:relative}
+.car{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;background:var(--soft);aspect-ratio:4/5}
+.car::-webkit-scrollbar{display:none}
+.car img{flex:none;width:100%;height:100%;object-fit:cover;scroll-snap-align:center}
+.cnt{position:absolute;right:12px;top:12px;background:rgba(0,0,0,.55);color:#fff;font:600 12px var(--f-b);border-radius:999px;padding:3px 9px}
+.nav{position:absolute;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:50%;border:0;background:rgba(255,255,255,.9);cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.nav.l{left:10px}.nav.r{right:10px}
+@media(hover:hover){.ph:hover .nav{display:flex}}
+.dots{display:flex;justify-content:center;gap:5px;padding:10px 0}.dots i{width:6px;height:6px;border-radius:50%;background:#D8D3CC}.dots i.on{background:var(--ink)}
+.igh{display:flex;align-items:center;gap:10px;padding:12px 16px;font-weight:600;font-size:14px}.igh .av{width:32px;height:32px;font-size:15px}.igh span span{font-weight:400;color:var(--mut)}
+.side{padding:4px 16px 0}
+.kind{font:600 11px var(--f-b);letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin:6px 0 4px}
+.ttl{font:400 28px/1.15 var(--f-d);margin:0 0 4px;letter-spacing:-.01em}
+.when{color:var(--mut);font-size:13px;margin:0 0 12px}
+.cap{white-space:pre-wrap;font-size:14.5px;margin:0 0 16px}
+.cap b{font-weight:600}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:999px;padding:12px 18px;font-weight:600;font-size:14px;text-decoration:none;border:1px solid var(--line);background:#fff;cursor:pointer}
+.btn.dk{background:#2b2a28;color:#fff;border-color:#2b2a28}
+.btn svg{width:16px;height:16px}
+.made{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;color:var(--mut);font-size:13px;padding:28px 18px 10px}
+.made b{font:400 17px var(--f-d);color:var(--ink)}.made a{color:var(--ink);font-weight:600}
+.foot{display:flex;gap:8px;padding:16px 18px}
+.modal{position:fixed;inset:0;background:rgba(20,19,18,.55);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:#fff;width:100%;max-width:980px;max-height:94vh;overflow:auto;border-radius:20px 20px 0 0;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 16px)}
+.x{position:sticky;top:0;display:flex;justify-content:flex-end;padding:10px 12px 0;background:#fff;z-index:3}.x button{border:0;background:var(--soft);width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:18px}
+.empty{max-width:420px;margin:18vh auto;text-align:center;padding:0 24px}.empty h1{font:400 30px var(--f-d);margin:0 0 8px}.empty p{color:var(--mut)}
+.load{height:60vh;display:flex;align-items:center;justify-content:center;color:var(--mut)}
+@media(min-width:900px){
+ header{padding:20px 28px}
+ .post{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:32px;padding:28px}
+ .post .igh{grid-column:1/-1;padding:0}
+ .car{border-radius:14px}
+ .side{padding:0}
+ .ttl{font-size:34px}
+ .modal{align-items:center}.sheet{border-radius:20px;max-height:90vh}
+ .prof{padding:26px 28px}.grid{padding:0 28px;gap:4px}
+ .foot{padding:20px 28px}
+}
+</style></head>
+<body><div id="app" class="load">Opening…</div>
+<script>
+const SB='https://epvfjtvvniflvxnubkxw.supabase.co',KEY='sb_publishable_HozhQGZOQw99SfKEt_cuCA_AXw_kst9';
+const sid=(location.search.slice(1).split('&')[0]||'').replace(/[^a-z0-9]/gi,'');
+const $=(t,a,...k)=>{const e=document.createElement(t);for(const[n,v] of Object.entries(a||{})){if(v==null||v===false)continue;if(n.startsWith('on'))e.addEventListener(n.slice(2),v);else if(n==='html')e.innerHTML=v;else e.setAttribute(n,v===true?'':v)}k.flat().forEach(c=>{if(c==null||c===false)return;e.append(c.nodeType?c:document.createTextNode(c))});return e};
+const SVG={check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',mail:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/></svg>',
+ stack:'<svg class="stack" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="13" height="13" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/></svg>'};
+const fmtDay=(d,t)=>{if(!d)return '';const x=new Date(d+'T'+(t||'12:00'));let s=x.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});if(t)s+=' · '+x.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});return s};
+const shortDay=d=>d?new Date(d+'T12:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
+function mail(D,subj,body){return 'mailto:'+String(D.by.email||'').replace(/[^a-z0-9@._+-]/gi,'')+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body+'\n\n'+location.href)}
+function postView(D,p,i,n){const ims=p.im||[];let cur=0;
+  const car=$('div',{class:'car'},ims.map(u=>$('img',{src:u,alt:''})));const cnt=ims.length>1?$('span',{class:'cnt'},'1/'+ims.length):null;
+  const dots=ims.length>1?$('div',{class:'dots'},ims.map((_,j)=>$('i',{class:j?'':'on'}))):null;
+  const go=k=>{car.scrollTo({left:car.clientWidth*k,behavior:'smooth'})};
+  car.addEventListener('scroll',()=>{const k=Math.round(car.scrollLeft/Math.max(1,car.clientWidth));if(k!==cur){cur=k;if(cnt)cnt.textContent=(k+1)+'/'+ims.length;if(dots)[...dots.children].forEach((e,j)=>e.className=j===k?'on':'')}},{passive:true});
+  const who=$('div',{class:'igh'},$('span',{class:'av'},(D.by.handle||'d')[0].toUpperCase()),$('span',null,D.by.handle||D.by.name,D.collab?$('span',null,' and '):null,D.collab||null));
+  const title=p.t||(p.c?p.c.split(/[\n.!?]/)[0].slice(0,40):'')||'the post';
+  return $('div',{class:'post'},who,
+    $('div',{class:'ph'},car,cnt,ims.length>1?$('button',{class:'nav l','aria-label':'Previous',onclick:()=>go(Math.max(0,cur-1))},'‹'):null,ims.length>1?$('button',{class:'nav r','aria-label':'Next',onclick:()=>go(Math.min(ims.length-1,cur+1))},'›'):null,dots),
+    $('div',{class:'side'},$('p',{class:'kind'},(n>1?'Post '+(i+1)+' of '+n+' · ':'')+(ims.length>1?'Carousel':(p.k||'Post'))),p.t?$('h1',{class:'ttl'},p.t):null,
+      p.d?$('p',{class:'when'},'Goes live '+fmtDay(p.d,p.tm)):null,
+      p.c?$('p',{class:'cap'},$('b',null,D.by.handle||''),' ',p.c):null,
+      $('div',{class:'acts'},$('a',{class:'btn dk',href:mail(D,'Approved: '+title,'Approved. Looks great!'),html:SVG.check+'Approve'}),$('a',{class:'btn',href:mail(D,'Change: '+title,'Could we change:\n- ')},'Ask for a change'))))}
+function made(){return $('div',{class:'made'},'Made with',$('b',null,'Daylo'),'· plan, share and get approved ·',$('a',{href:'../'},'Make your own'))}
+function render(D){const app=document.getElementById('app');app.className='wrap';const P=D.posts||[];
+  document.title=(P.length===1?(P[0].t||'Post'):(D.by.handle||'Preview'))+' · Daylo';
+  const head=$('header',null,$('a',{class:'logo',href:'../'},'Daylo'),$('span',{style:'display:flex;gap:8px;align-items:center'},D.brand?$('span',{class:'pill'},'For '+D.brand):null,$('a',{class:'mk',href:'../'},'Make your own')));
+  if(D.kind==='post'||P.length===1){app.replaceChildren(head,postView(D,P[0],0,1),made());return}
+  const open=i=>{const m=$('div',{class:'modal',onclick:e=>{if(e.target===m)m.remove()}},$('div',{class:'sheet'},$('div',{class:'x'},$('button',{'aria-label':'Close',onclick:()=>m.remove()},'×')),postView(D,P[i],i,P.length)));document.body.append(m)};
+  addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal').forEach(m=>m.remove())});
+  app.replaceChildren(head,
+    $('div',{class:'prof'},$('span',{class:'av'},(D.by.handle||'d')[0].toUpperCase()),$('div',null,$('b',null,D.by.handle||D.by.name),$('small',null,(D.kind==='feed'?'Feed preview':'Posts to approve')+' · '+P.length+' post'+(P.length===1?'':'s')))),
+    $('div',{class:'grid'},P.map((p,i)=>{const b=$('button',{class:'cell','aria-label':p.t||'Post',onclick:()=>open(i)},p.im&&p.im[0]?$('img',{src:p.im[0],alt:''}):null,p.d?$('span',{class:'date'},shortDay(p.d)):null);if((p.im||[]).length>1)b.insertAdjacentHTML('beforeend',SVG.stack);return b})),
+    $('div',{class:'foot'},$('a',{class:'btn dk',style:'flex:1',href:mail(D,'Approved: all '+P.length+' posts','All approved. Looks great!'),html:SVG.check+'Approve all'}),$('a',{class:'btn',href:mail(D,'About the preview','Hi '+(D.by.name||'')+',\n\n'),html:SVG.mail+'Reply'})),
+    made())}
+function gone(){const app=document.getElementById('app');app.className='';app.replaceChildren($('div',{class:'empty'},$('h1',null,'This preview isn’t here'),$('p',null,'The link may be old or mistyped. Ask the person who sent it for a new one.'),made()))}
+(async()=>{if(!sid)return gone();try{const r=await fetch(SB+'/rest/v1/rpc/get_share',{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify({sid})});const D=r.ok?await r.json():null;if(!D||!D.posts)return gone();render(D)}catch(e){gone()}})();
+</script></body></html>
